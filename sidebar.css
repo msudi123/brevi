@@ -5,7 +5,7 @@
   right: 18px;
   z-index: 2147483647;
   width: min(390px, calc(100vw - 36px));
-  color: #17202a;
+  color: #132238;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -18,10 +18,10 @@
 
 #brevi-root .ai-shell {
   overflow: hidden;
-  border: 1px solid rgba(23, 32, 42, 0.12);
+  border: 1px solid rgba(19, 34, 56, 0.12);
   border-radius: 8px;
-  background: #fffdf8;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22);
+  background: #fbfdf9;
+  box-shadow: 0 18px 50px rgba(19, 34, 56, 0.22);
 }
 
 #brevi-root .ai-header {
@@ -30,8 +30,8 @@
   align-items: flex-start;
   justify-content: space-between;
   padding: 18px 18px 14px;
-  border-bottom: 1px solid rgba(23, 32, 42, 0.1);
-  background: #f7fbff;
+  border-bottom: 1px solid rgba(19, 34, 56, 0.1);
+  background: #f3fbf7;
 }
 
 #brevi-root .ai-kicker {
@@ -47,7 +47,7 @@
   display: -webkit-box;
   overflow: hidden;
   margin: 0;
-  color: #17202a;
+  color: #132238;
   font-size: 17px;
   font-weight: 800;
   line-height: 1.25;
@@ -59,10 +59,10 @@
   flex: 0 0 32px;
   width: 32px;
   height: 32px;
-  border: 1px solid rgba(23, 32, 42, 0.14);
+  border: 1px solid rgba(19, 34, 56, 0.14);
   border-radius: 8px;
   background: #ffffff;
-  color: #17202a;
+  color: #132238;
   cursor: pointer;
   font-size: 24px;
   line-height: 1;
@@ -80,6 +80,20 @@
   line-height: 1.55;
 }
 
+#brevi-root .ai-status {
+  flex: 0 0 auto;
+  max-width: 120px;
+  padding: 5px 8px;
+  border: 1px solid rgba(33, 104, 105, 0.18);
+  border-radius: 999px;
+  background: #eafaf2;
+  color: #216869;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+}
+
 #brevi-root p {
   margin: 0 0 12px;
 }
@@ -90,37 +104,9 @@
   font-size: 12px;
 }
 
-#brevi-root .ai-source-wrap {
-  display: grid;
-  gap: 6px;
-  margin: 14px 0 16px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid rgba(23, 32, 42, 0.1);
-}
-
-#brevi-root .ai-source-wrap span:first-child {
-  color: #667085;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-#brevi-root .ai-source {
-  color: #005f73;
-  font-size: 14px;
-  font-weight: 750;
-  line-height: 1.35;
-  text-decoration: none;
-  overflow-wrap: anywhere;
-}
-
-#brevi-root .ai-source:hover {
-  text-decoration: underline;
-}
-
 #brevi-root .ai-summary ul {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   margin: 0;
   padding-left: 20px;
 }
@@ -133,31 +119,47 @@
   font-weight: 800;
 }
 
-#brevi-root .ai-refs {
+#brevi-root .ai-chip-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+#brevi-root .ai-source-chip {
   display: inline-flex;
   align-items: center;
   min-height: 18px;
-  margin-left: 4px;
   padding: 0 6px;
+  border: 1px solid rgba(33, 104, 105, 0.18);
   border-radius: 999px;
   background: #edf6f9;
   color: #005f73;
   font-size: 11px;
   font-weight: 800;
-  vertical-align: middle;
+  text-decoration: none;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#brevi-root .ai-source-chip:hover {
+  background: #dff3f2;
 }
 
 #brevi-root .ai-ratings {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 #brevi-root .ai-ratings span {
   min-width: 0;
   padding: 8px 10px;
-  border: 1px solid rgba(23, 32, 42, 0.1);
+  border: 1px solid rgba(19, 34, 56, 0.1);
   border-radius: 8px;
   background: #ffffff;
   color: #667085;
@@ -167,25 +169,72 @@
 
 #brevi-root .ai-ratings strong {
   display: block;
-  color: #17202a;
+  color: #132238;
   font-size: 13px;
 }
 
 #brevi-root .ai-warning {
   margin: 0 0 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(180, 83, 9, 0.25);
+  padding: 8px 10px;
+  border: 1px solid rgba(33, 104, 105, 0.16);
+  border-radius: 8px;
+  background: #f3fbf7;
+  color: #344054;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+#brevi-root .ai-caution {
+  margin: 0 0 12px;
+  padding: 9px 10px;
+  border: 1px solid rgba(180, 83, 9, 0.22);
   border-radius: 8px;
   background: #fff7ed;
   color: #7c2d12;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.45;
+}
+
+#brevi-root .ai-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(19, 34, 56, 0.1);
+}
+
+#brevi-root .ai-section h3 {
+  margin: 0 0 8px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+#brevi-root .ai-article-title {
+  margin-bottom: 4px;
+  color: #132238;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+#brevi-root .ai-domain {
+  margin-bottom: 8px;
+  color: #667085;
+  font-size: 12px;
+}
+
+#brevi-root .ai-best-match {
+  padding: 12px;
+  border: 1px solid rgba(33, 104, 105, 0.14);
+  border-radius: 8px;
+  background: #ffffff;
 }
 
 #brevi-root .ai-context {
   margin-top: 16px;
   padding-top: 14px;
-  border-top: 1px solid rgba(23, 32, 42, 0.1);
+  border-top: 1px solid rgba(19, 34, 56, 0.1);
 }
 
 #brevi-root .ai-context span {
@@ -204,7 +253,7 @@
 #brevi-root .ai-sources-used {
   margin-top: 16px;
   padding-top: 14px;
-  border-top: 1px solid rgba(23, 32, 42, 0.1);
+  border-top: 1px solid rgba(19, 34, 56, 0.1);
 }
 
 #brevi-root .ai-sources-used > span {
@@ -225,6 +274,13 @@
 
 #brevi-root .ai-sources-used li {
   padding-left: 2px;
+}
+
+#brevi-root .ai-source-title {
+  margin-bottom: 3px;
+  color: #132238;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 #brevi-root .ai-sources-used a {
@@ -279,10 +335,63 @@
   font-size: 14px;
   font-weight: 800;
   text-decoration: none;
+  cursor: pointer;
 }
 
 #brevi-root .ai-button:hover {
   background: #1a5556;
+}
+
+#brevi-root .ai-button-small {
+  min-height: 34px;
+  margin-top: 6px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+#brevi-root .ai-secondary {
+  border: 1px solid rgba(19, 34, 56, 0.12);
+  background: #ffffff;
+  color: #132238;
+}
+
+#brevi-root .ai-secondary:hover {
+  background: #edf6f9;
+}
+
+#brevi-root .ai-mini-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  margin-top: 6px;
+  padding: 0 10px;
+  border: 1px solid rgba(19, 34, 56, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #216869;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+#brevi-root .ai-footer {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(19, 34, 56, 0.1);
+}
+
+#brevi-root .ai-footer p {
+  margin-bottom: 6px;
+  color: #667085;
+  font-size: 12px;
+}
+
+#brevi-root .ai-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 #brevi-root .ai-loading {
@@ -332,6 +441,10 @@
   }
 
   #brevi-root .ai-ratings {
+    grid-template-columns: 1fr;
+  }
+
+  #brevi-root .ai-actions {
     grid-template-columns: 1fr;
   }
 }

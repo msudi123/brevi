@@ -1,6 +1,7 @@
 import { cleanText } from "./text.js";
 
 export async function summarizeWithOpenAI({ title, articleUrl, config }) {
+  const lockedArticle = buildLockedArticle(title, articleUrl);
   const prompt = [
     "You are Brevi, a careful open-web news summarizer.",
     "",
@@ -16,34 +17,44 @@ export async function summarizeWithOpenAI({ title, articleUrl, config }) {
     "- not just a broadly related topic",
     "",
     "Rules:",
+    "- Do not bypass or reproduce paywalled content.",
+    "- Only summarize free, accessible sources.",
+    "- Verify that the free source is about the same story as the locked article.",
+    "- Every factual bullet must be supported by at least one source.",
     "- Do not invent facts.",
+    "- Do not show internal search IDs to the user.",
     "- Do not use the paywalled article body.",
     "- Do not claim this is a full replacement for the original article.",
-    "- If confidence is low, do not summarize. Say no reliable free coverage was found.",
+    "- If no reliable free match is found, do not summarize.",
+    "- If confidence is low, show exactly: No reliable free coverage found.",
     "- If confidence is medium, summarize with a clear caution.",
+    "- Separate sources checked from sources used.",
+    "- Do not list a source as used unless it directly supports at least one bullet.",
     "",
-    `Paywalled title: ${cleanText(title)}`,
-    `Paywalled URL: ${cleanText(articleUrl, 2000)}`,
+    `Locked article title: ${lockedArticle.title}`,
+    `Locked article domain: ${lockedArticle.domain}`,
+    `Locked article URL: ${lockedArticle.url}`,
     "",
     "Return JSON only with exactly these snake_case keys:",
     "match_confidence: high | medium | low",
     "source_quality: high | medium | low",
-    "summary_bullets: array of objects, each with text: string and source_ids: array of source IDs that support the bullet",
-    "sources_used: array of objects with id, publisher, title, url, date, reason_used",
+    "locked_article: object with title, domain, url",
+    "best_free_match: object with publisher, title, url, date, reason",
+    "summary_bullets: array of objects, each with text and sources",
+    "summary_bullets[].sources: array of objects with publisher and url",
+    "sources_used: array of objects with publisher, title, url, date, reason_used",
     "sources_checked_count: number",
-    "best_match_source: source ID string from sources_used, or empty string",
-    "key_missing_context: string describing what may be missing compared with the original paywalled article",
-    "source_url: string",
-    "source_title: string",
+    "missing_context: string describing what may be missing compared with the original paywalled article",
     "warning: string; include a warning if this is not clearly the same story",
     "",
     "Reference rules:",
-    "- Every factual bullet must be supported by at least one source_id.",
+    "- Every factual bullet must be supported by at least one source object with publisher and url.",
     "- Do not include a bullet if no source supports it.",
     "- Do not list a source as used unless it directly supports at least one bullet.",
     "- Separate sources checked from sources used.",
     "- If the source URL is missing, do not use that source.",
-    "- If match_confidence is low, summary_bullets must be [] and sources_used may be []."
+    "- If match_confidence is low, summary_bullets must be [] and sources_used may be [].",
+    "- Never return internal IDs like turn0search8, turn0search3, source_ids, or search result IDs."
   ].join("\n");
 
   const openaiResponse = await fetch(config.openaiEndpoint, {
@@ -73,7 +84,7 @@ export async function summarizeWithOpenAI({ title, articleUrl, config }) {
     throw new Error("OpenAI did not return summary text.");
   }
 
-  return parseSummaryJson(text);
+  return parseSummaryJson(text, lockedArticle);
 }
 
 function extractResponseText(data) {
@@ -87,38 +98,40 @@ function extractResponseText(data) {
     .trim();
 }
 
-function parseSummaryJson(text) {
+function parseSummaryJson(text, lockedArticle) {
   const trimmed = text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
   const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
 
   try {
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : trimmed);
-    return normalizeSummaryResult(parsed);
+    return normalizeSummaryResult(parsed, lockedArticle);
   } catch (error) {
-    return lowConfidenceResult("Brevi could not verify a reliable free source for the same story.");
+    return lowConfidenceResult("No reliable free coverage found.", { lockedArticle });
   }
 }
 
-function normalizeSummaryResult(parsed) {
+function normalizeSummaryResult(parsed, fallbackLockedArticle) {
   const matchConfidence = normalizeRating(parsed.match_confidence || parsed.matchConfidence);
   const sourceQuality = normalizeRating(parsed.source_quality || parsed.sourceQuality);
   const sourcesUsed = normalizeSources(parsed.sources_used || parsed.sourcesUsed);
-  const sourceIds = new Set(sourcesUsed.map((source) => source.id));
-  const summaryBullets = normalizeSummaryBullets(parsed.summary_bullets || parsed.summaryBullets || parsed.summary, sourceIds);
+  const summaryBullets = normalizeSummaryBullets(parsed.summary_bullets || parsed.summaryBullets || parsed.summary, sourcesUsed);
   const fallbackSource = sourcesUsed[0] || {};
-  const sourceUrl = String(parsed.source_url || parsed.sourceUrl || fallbackSource.url || "").trim();
-  const sourceTitle = String(parsed.source_title || parsed.sourceTitle || fallbackSource.title || "Free coverage found").trim();
-  const bestMatchSource = String(parsed.best_match_source || parsed.bestMatchSource || fallbackSource.id || "").trim();
+  const lockedArticle = normalizeLockedArticle(parsed.locked_article || parsed.lockedArticle, fallbackLockedArticle);
+  const bestFreeMatch = normalizeBestFreeMatch(parsed.best_free_match || parsed.bestFreeMatch, fallbackSource);
+  const sourceUrl = bestFreeMatch.url || String(parsed.source_url || parsed.sourceUrl || fallbackSource.url || "").trim();
+  const sourceTitle = bestFreeMatch.title || String(parsed.source_title || parsed.sourceTitle || fallbackSource.title || "Free coverage found").trim();
   const sourcesCheckedCount = Math.max(Number(parsed.sources_checked_count || parsed.sourcesCheckedCount || sourcesUsed.length || 0), sourcesUsed.length);
-  const keyMissingContext = String(parsed.key_missing_context || parsed.keyMissingContext || "").trim();
+  const missingContext = String(parsed.missing_context || parsed.missingContext || parsed.key_missing_context || parsed.keyMissingContext || "").trim();
   const warning = String(parsed.warning || "").trim();
 
   if (matchConfidence === "low" || summaryBullets.length === 0 || sourcesUsed.length === 0 || !sourceUrl) {
-    return lowConfidenceResult(warning || "No reliable free coverage was found for the same story.", {
+    return lowConfidenceResult(warning || "No reliable free coverage found.", {
+      lockedArticle,
+      bestFreeMatch,
       sourceTitle,
       sourceUrl,
       sourceQuality,
-      keyMissingContext,
+      missingContext,
       sourcesCheckedCount
     });
   }
@@ -126,14 +139,16 @@ function normalizeSummaryResult(parsed) {
   return {
     matchConfidence,
     sourceQuality,
+    lockedArticle,
+    bestFreeMatch,
     sourceTitle,
     sourceUrl,
     summary: summaryBullets.map((bullet) => bullet.text).join("\n"),
     summaryBullets,
     sourcesUsed,
     sourcesCheckedCount,
-    bestMatchSource,
-    keyMissingContext,
+    missingContext,
+    keyMissingContext: missingContext,
     warning: matchConfidence === "medium"
       ? warning || "This free source appears related, but may not fully match every detail of the locked article."
       : warning
@@ -141,9 +156,12 @@ function normalizeSummaryResult(parsed) {
 }
 
 function lowConfidenceResult(warning, overrides = {}) {
+  const lockedArticle = overrides.lockedArticle || buildLockedArticle("", "");
   return {
     matchConfidence: "low",
     sourceQuality: overrides.sourceQuality || "low",
+    lockedArticle,
+    bestFreeMatch: overrides.bestFreeMatch || {},
     sourceTitle: overrides.sourceTitle || "No reliable free coverage found",
     sourceUrl: overrides.sourceUrl || "",
     summary: "",
@@ -151,7 +169,8 @@ function lowConfidenceResult(warning, overrides = {}) {
     sourcesUsed: [],
     sourcesCheckedCount: Number(overrides.sourcesCheckedCount || 0),
     bestMatchSource: "",
-    keyMissingContext: overrides.keyMissingContext || "Brevi could not verify a free source covering the same story.",
+    missingContext: overrides.missingContext || "Brevi could not access the original paywalled article body, so details unique to that article may be missing.",
+    keyMissingContext: overrides.missingContext || "Brevi could not access the original paywalled article body, so details unique to that article may be missing.",
     warning
   };
 }
@@ -161,27 +180,32 @@ function normalizeRating(value) {
   return ["high", "medium", "low"].includes(rating) ? rating : "low";
 }
 
-function normalizeSummaryBullets(value, sourceIds) {
+function normalizeSummaryBullets(value, sourcesUsed) {
+  const sourceByUrl = new Map(sourcesUsed.map((source) => [normalizeUrl(source.url), source]));
+  const sourceByPublisher = new Map(sourcesUsed.map((source) => [normalizeName(source.publisher), source]));
   const items = Array.isArray(value) ? value : String(value || "")
     .split("\n")
-    .map((line) => ({ text: line.replace(/^[-*]\s*/, ""), source_ids: [] }));
+    .map((line) => ({ text: line.replace(/^[-*]\s*/, ""), sources: [] }));
 
   return items
     .map((item) => {
       if (typeof item === "string") {
-        return { text: item.trim(), sourceIds: [] };
+        return { text: item.trim(), sources: [] };
       }
 
-      const ids = (Array.isArray(item.source_ids) ? item.source_ids : item.sourceIds || [])
-        .map((id) => String(id || "").trim())
-        .filter((id) => id && sourceIds.has(id));
+      const rawSources = Array.isArray(item.sources)
+        ? item.sources
+        : (Array.isArray(item.source_ids) ? item.source_ids : item.sourceIds || []);
+      const sources = rawSources
+        .map((source) => normalizeBulletSource(source, sourceByUrl, sourceByPublisher))
+        .filter(Boolean);
 
       return {
         text: String(item.text || item.bullet || "").trim(),
-        sourceIds: ids
+        sources
       };
     })
-    .filter((item) => item.text && item.sourceIds.length > 0)
+    .filter((item) => item.text && item.sources.length > 0)
     .slice(0, 5);
 }
 
@@ -192,13 +216,13 @@ function normalizeSources(value) {
   return value
     .map((source, index) => {
       const url = String(source?.url || "").trim();
-      const id = String(source?.id || source?.source_id || `S${index + 1}`).trim();
-      if (!url || !id || seen.has(id)) return null;
-      seen.add(id);
+      if (!url || seen.has(normalizeUrl(url))) return null;
+      seen.add(normalizeUrl(url));
+      const publisher = sanitizePublisher(source.publisher) || publisherFromUrl(url);
 
       return {
-        id,
-        publisher: String(source.publisher || "").trim(),
+        id: `S${index + 1}`,
+        publisher,
         title: String(source.title || "").trim(),
         url,
         date: String(source.date || "").trim(),
@@ -206,4 +230,71 @@ function normalizeSources(value) {
       };
     })
     .filter(Boolean);
+}
+
+function normalizeBulletSource(source, sourceByUrl, sourceByPublisher) {
+  if (typeof source === "string") {
+    const normalized = normalizeName(source);
+    return sourceByPublisher.get(normalized) || null;
+  }
+
+  const url = String(source?.url || "").trim();
+  const publisher = sanitizePublisher(source?.publisher) || (url ? publisherFromUrl(url) : "");
+  const matched = url ? sourceByUrl.get(normalizeUrl(url)) : sourceByPublisher.get(normalizeName(publisher));
+  if (!matched?.url) return null;
+
+  return {
+    publisher: matched.publisher || publisher,
+    url: matched.url
+  };
+}
+
+function normalizeLockedArticle(value, fallback) {
+  return {
+    title: String(value?.title || fallback?.title || "").trim(),
+    domain: String(value?.domain || fallback?.domain || "").trim(),
+    url: String(value?.url || fallback?.url || "").trim()
+  };
+}
+
+function normalizeBestFreeMatch(value, fallback = {}) {
+  const url = String(value?.url || fallback.url || "").trim();
+  const publisher = sanitizePublisher(value?.publisher) || sanitizePublisher(fallback.publisher) || (url ? publisherFromUrl(url) : "");
+  return {
+    publisher,
+    title: String(value?.title || fallback.title || "").trim(),
+    url,
+    date: String(value?.date || fallback.date || "").trim(),
+    reason: String(value?.reason || fallback.reasonUsed || "").trim()
+  };
+}
+
+function buildLockedArticle(title, articleUrl) {
+  const url = cleanText(articleUrl, 2000);
+  return {
+    title: cleanText(title),
+    domain: publisherFromUrl(url),
+    url
+  };
+}
+
+function publisherFromUrl(value) {
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch (error) {
+    return "";
+  }
+}
+
+function sanitizePublisher(value) {
+  const publisher = String(value || "").trim();
+  return /^turn\d+|search\d+|result\d+|source[_-]?\d+/i.test(publisher) ? "" : publisher;
+}
+
+function normalizeName(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeUrl(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
 }

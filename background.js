@@ -89,6 +89,8 @@ async function handlePaywallDetected(article, tab) {
   await updateSidebar(tab.id, {
     status: "success",
     title: article.title || result.title || "Brevi summary",
+    lockedArticle: result.lockedArticle,
+    bestFreeMatch: result.bestFreeMatch,
     summary: result.summary,
     summaryBullets: result.summaryBullets,
     sourcesUsed: result.sourcesUsed,
@@ -98,6 +100,7 @@ async function handlePaywallDetected(article, tab) {
     sourceUrl: result.sourceUrl,
     matchConfidence: result.matchConfidence,
     sourceQuality: result.sourceQuality,
+    missingContext: result.missingContext,
     keyMissingContext: result.keyMissingContext,
     warning: result.warning,
     remaining: result.remaining
@@ -165,8 +168,9 @@ function createSidebarShell() {
       <div class="ai-header">
         <div>
           <div class="ai-kicker">Brevi</div>
-          <h2 id="brevi-title">Checking article</h2>
+          <h2 id="brevi-title">Open-web summary</h2>
         </div>
+        <span id="brevi-status" class="ai-status">Checking</span>
         <button type="button" class="ai-close" aria-label="Close Brevi">&times;</button>
       </div>
       <div id="brevi-body" class="ai-body"></div>
@@ -182,14 +186,14 @@ function renderArticleIntelSidebar(state) {
       ? markdown
       : String(markdown)
         .split("\n")
-        .map((line) => ({ text: String(line).trim().replace(/^[-*]\s*/, ""), sourceIds: [] }));
+        .map((line) => ({ text: String(line).trim().replace(/^[-*]\s*/, ""), sources: [] }));
 
     if (bullets.length <= 1) {
       const bullet = bullets[0];
-      return `<p>${formatInlineMarkdown(typeof bullet === "string" ? bullet : bullet?.text || markdown)}${renderSourceRefs(bullet)}</p>`;
+      return `<p>${formatInlineMarkdown(typeof bullet === "string" ? bullet : bullet?.text || markdown)}${renderSourceChips(bullet)}</p>`;
     }
 
-    return `<ul>${bullets.map((bullet) => `<li>${formatInlineMarkdown(typeof bullet === "string" ? bullet : bullet.text)}${renderSourceRefs(bullet)}</li>`).join("")}</ul>`;
+    return `<ul>${bullets.map((bullet) => `<li>${formatInlineMarkdown(typeof bullet === "string" ? bullet : bullet.text)}${renderSourceChips(bullet)}</li>`).join("")}</ul>`;
   }
 
   function escapeHtml(value) {
@@ -216,24 +220,29 @@ function renderArticleIntelSidebar(state) {
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 
-  function renderSourceRefs(bullet) {
-    const ids = Array.isArray(bullet?.sourceIds) ? bullet.sourceIds : [];
-    if (ids.length === 0) return "";
-    return ` <span class="ai-refs">${ids.map((id) => escapeHtml(id)).join(", ")}</span>`;
+  function renderSourceChips(bullet) {
+    const sources = Array.isArray(bullet?.sources) ? bullet.sources : [];
+    if (sources.length === 0) return "";
+
+    return ` <span class="ai-chip-row">${sources.map((source) => `
+      <a class="ai-source-chip" href="${escapeAttribute(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.publisher || source.url)}</a>
+    `).join("")}</span>`;
   }
 
-  function renderSourcesUsed(sources, bestMatchSource) {
+  function renderSourcesUsed(sources, bestMatchUrl) {
     if (!Array.isArray(sources) || sources.length === 0) return "";
 
     const items = sources.map((source) => {
-      const best = source.id === bestMatchSource ? `<span class="ai-best">Best match</span>` : "";
+      const best = source.url === bestMatchUrl ? `<span class="ai-best">Best match</span>` : "";
       const meta = [source.publisher, source.date].filter(Boolean).map(escapeHtml).join(" · ");
       return `
         <li>
+          <div class="ai-source-title">${escapeHtml(source.publisher || "Source")}</div>
           <a href="${escapeAttribute(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.title || source.url)}</a>
           ${best}
           ${meta ? `<span>${meta}</span>` : ""}
           ${source.reasonUsed ? `<p>${escapeHtml(source.reasonUsed)}</p>` : ""}
+          <a class="ai-mini-button" href="${escapeAttribute(source.url)}" target="_blank" rel="noreferrer">Open source</a>
         </li>
       `;
     }).join("");
@@ -246,14 +255,55 @@ function renderArticleIntelSidebar(state) {
     `;
   }
 
+  function renderLockedArticle(article, fallbackTitle) {
+    const locked = article || {};
+    return `
+      <section class="ai-section">
+        <h3>Locked article</h3>
+        <p class="ai-article-title">${escapeHtml(locked.title || fallbackTitle || "Locked article")}</p>
+        <p class="ai-domain">${escapeHtml(locked.domain || "")}</p>
+      </section>
+    `;
+  }
+
+  function renderBestMatch(match, sourceTitle, sourceUrl) {
+    const best = match || {};
+    const url = best.url || sourceUrl || "";
+    const meta = [best.publisher, best.date].filter(Boolean).map(escapeHtml).join(" · ");
+    return `
+      <section class="ai-section ai-best-match">
+        <h3>Best free match</h3>
+        <p class="ai-article-title">${escapeHtml(best.title || sourceTitle || "Free source found")}</p>
+        ${meta ? `<p class="ai-domain">${meta}</p>` : ""}
+        ${best.reason ? `<p>${escapeHtml(best.reason)}</p>` : ""}
+        ${url ? `<a class="ai-button ai-button-small" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">Open source article</a>` : ""}
+      </section>
+    `;
+  }
+
+  function renderSourceStats(checkedCount, usedCount) {
+    if (!Number.isFinite(checkedCount)) return "";
+    if (usedCount === 0) return checkedCount > 0 ? `Sources checked: ${checkedCount}` : "No reliable free match found";
+    if (checkedCount <= 1) return "Best free match found: 1 source";
+    return `Sources checked: ${checkedCount} · Sources used: ${usedCount}`;
+  }
+
   const root = document.getElementById("brevi-root");
   if (!root) return;
 
   const title = root.querySelector("#brevi-title");
+  const status = root.querySelector("#brevi-status");
   const body = root.querySelector("#brevi-body");
   if (!title || !body) return;
 
-  title.textContent = state.title || "Brevi";
+  title.textContent = "Open-web summary";
+  if (status) {
+    status.textContent = state.status === "success" && state.matchConfidence !== "low"
+      ? "Free match found"
+      : state.status === "success"
+        ? "No match found"
+        : "Checking";
+  }
 
   if (state.status === "loading") {
     body.innerHTML = `
@@ -293,19 +343,16 @@ function renderArticleIntelSidebar(state) {
   const summaryHtml = isLowConfidence
     ? `<p>${escapeHtml(state.warning || "No reliable free coverage was found for the same story.")}</p>`
     : markdownBulletsToHtml(state.summaryBullets || state.summary || "No summary returned.");
-  const source = state.sourceUrl
-    ? `<a class="ai-source" href="${escapeAttribute(state.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(state.sourceTitle || state.sourceUrl)}</a>`
-    : `<span class="ai-source">${escapeHtml(state.sourceTitle || "Source not provided")}</span>`;
-  const warning = state.warning
-    ? `<div class="ai-warning">${escapeHtml(state.warning)}</div>`
+  const standardWarning = "Based on free sources. May not include details unique to the original paywalled article.";
+  const warning = `<div class="ai-warning">${escapeHtml(standardWarning)}</div>`;
+  const caution = state.warning && state.warning !== standardWarning
+    ? `<div class="ai-caution">${escapeHtml(state.warning)}</div>`
     : "";
-  const missingContext = state.keyMissingContext
-    ? `<div class="ai-context"><span>What may be missing</span><p>${escapeHtml(state.keyMissingContext)}</p></div>`
-    : "";
-  const sourcesUsed = renderSourcesUsed(state.sourcesUsed, state.bestMatchSource);
-  const sourcesChecked = Number.isFinite(state.sourcesCheckedCount)
-    ? `<p class="ai-muted">Sources checked: ${escapeHtml(state.sourcesCheckedCount)}</p>`
-    : "";
+  const missingContext = `<div class="ai-context"><span>What may be missing</span><p>${escapeHtml("Brevi could not access the original paywalled article body, so details unique to that article may be missing.")}</p></div>`;
+  const sourcesUsedCount = Array.isArray(state.sourcesUsed) ? state.sourcesUsed.length : 0;
+  const bestMatchUrl = state.bestFreeMatch?.url || state.sourceUrl || "";
+  const sourcesUsed = renderSourcesUsed(state.sourcesUsed, bestMatchUrl);
+  const sourceStats = renderSourceStats(state.sourcesCheckedCount, sourcesUsedCount);
 
   body.innerHTML = `
     <div class="ai-ratings">
@@ -313,16 +360,28 @@ function renderArticleIntelSidebar(state) {
       <span>Source quality: <strong>${escapeHtml(formatRating(state.sourceQuality))}</strong></span>
     </div>
     ${warning}
-    <div class="ai-source-wrap">
-      <span>Free source</span>
-      ${source}
-    </div>
-    <div class="ai-summary">${summaryHtml}</div>
+    ${caution}
+    ${renderLockedArticle(state.lockedArticle, state.title)}
+    ${renderBestMatch(state.bestFreeMatch, state.sourceTitle, state.sourceUrl)}
+    <section class="ai-section">
+      <h3>Key points from free coverage</h3>
+      <div class="ai-summary">${summaryHtml}</div>
+    </section>
     ${sourcesUsed}
     ${missingContext}
-    ${sourcesChecked}
-    <p class="ai-muted">${Number.isFinite(state.remaining) ? `${state.remaining} free summaries left today.` : ""}</p>
+    <div class="ai-footer">
+      <p>${escapeHtml(sourceStats)}</p>
+      <p>${Number.isFinite(state.remaining) ? `${state.remaining} free summaries left today` : ""}</p>
+      <div class="ai-actions">
+        <button type="button" class="ai-button ai-secondary" id="brevi-check-again">Check another source</button>
+        <a class="ai-button" href="${escapeAttribute(state.upgradeUrl || "https://whop.com")}" target="_blank" rel="noreferrer">Upgrade</a>
+      </div>
+    </div>
   `;
+
+  body.querySelector("#brevi-check-again")?.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "BREVI_MANUAL_SUMMARIZE" });
+  });
 }
 
 async function summarizeActiveTab() {
