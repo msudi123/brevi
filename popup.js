@@ -1,5 +1,6 @@
 const backendUrl = document.getElementById("backendUrl");
 const accountEmail = document.getElementById("accountEmail");
+const autoRunEnabled = document.getElementById("autoRunEnabled");
 const save = document.getElementById("save");
 const summarize = document.getElementById("summarize");
 const reset = document.getElementById("reset");
@@ -7,9 +8,10 @@ const status = document.getElementById("status");
 const usage = document.getElementById("usage");
 const DEFAULT_BACKEND_URL = "https://brevi-psi.vercel.app";
 
-chrome.storage.local.get(["backendUrl", "accountEmail", "installId"], async (data) => {
+chrome.storage.local.get(["backendUrl", "accountEmail", "autoRunEnabled", "installId"], async (data) => {
   backendUrl.value = data.backendUrl || DEFAULT_BACKEND_URL;
   accountEmail.value = data.accountEmail || "";
+  autoRunEnabled.checked = data.autoRunEnabled !== false;
   await ensureInstallId(data.installId);
   checkUsage();
 });
@@ -18,7 +20,8 @@ save.addEventListener("click", () => {
   chrome.runtime.sendMessage({
     type: "ARTICLE_INTEL_SAVE_SETTINGS",
     backendUrl: backendUrl.value,
-    accountEmail: accountEmail.value
+    accountEmail: accountEmail.value,
+    autoRunEnabled: autoRunEnabled.checked
   }, () => {
     status.textContent = "Saved.";
     checkUsage();

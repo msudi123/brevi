@@ -44,8 +44,11 @@ observer.observe(document.documentElement, {
   subtree: true
 });
 
-function scanForPaywall() {
+async function scanForPaywall() {
   if (location.href === lastDetectedUrl) return;
+
+  const settings = await chrome.storage.local.get(["autoRunEnabled"]);
+  if (settings.autoRunEnabled === false) return;
 
   const selectorHit = PAYWALL_SELECTORS.some((selector) => document.querySelector(selector));
   const text = getVisiblePageText();
@@ -54,7 +57,7 @@ function scanForPaywall() {
   if (!selectorHit && !textHit) return;
 
   lastDetectedUrl = location.href;
-chrome.runtime.sendMessage({
+  chrome.runtime.sendMessage({
     type: "BREVI_PAYWALL_DETECTED",
     payload: {
       title: extractTitle(),

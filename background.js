@@ -34,7 +34,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "ARTICLE_INTEL_SAVE_SETTINGS") {
     chrome.storage.local.set({
       backendUrl: normalizeBackendUrl(message.backendUrl),
-      accountEmail: message.accountEmail?.trim() || ""
+      accountEmail: message.accountEmail?.trim() || "",
+      autoRunEnabled: message.autoRunEnabled !== false
     }, () => {
       sendResponse({ ok: true });
     });
