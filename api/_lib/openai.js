@@ -28,11 +28,22 @@ export async function summarizeWithOpenAI({ title, articleUrl, config }) {
     "Return JSON only with exactly these snake_case keys:",
     "match_confidence: high | medium | low",
     "source_quality: high | medium | low",
-    "summary: array of 3-5 concise bullet strings, or [] when match_confidence is low",
+    "summary_bullets: array of objects, each with text: string and source_ids: array of source IDs that support the bullet",
+    "sources_used: array of objects with id, publisher, title, url, date, reason_used",
+    "sources_checked_count: number",
+    "best_match_source: source ID string from sources_used, or empty string",
     "key_missing_context: string describing what may be missing compared with the original paywalled article",
     "source_url: string",
     "source_title: string",
-    "warning: string; include a warning if this is not clearly the same story"
+    "warning: string; include a warning if this is not clearly the same story",
+    "",
+    "Reference rules:",
+    "- Every factual bullet must be supported by at least one source_id.",
+    "- Do not include a bullet if no source supports it.",
+    "- Do not list a source as used unless it directly supports at least one bullet.",
+    "- Separate sources checked from sources used.",
+    "- If the source URL is missing, do not use that source.",
+    "- If match_confidence is low, summary_bullets must be [] and sources_used may be []."
   ].join("\n");
 
   const openaiResponse = await fetch(config.openaiEndpoint, {
@@ -91,18 +102,24 @@ function parseSummaryJson(text) {
 function normalizeSummaryResult(parsed) {
   const matchConfidence = normalizeRating(parsed.match_confidence || parsed.matchConfidence);
   const sourceQuality = normalizeRating(parsed.source_quality || parsed.sourceQuality);
-  const summary = normalizeSummary(parsed.summary);
-  const sourceUrl = String(parsed.source_url || parsed.sourceUrl || "").trim();
-  const sourceTitle = String(parsed.source_title || parsed.sourceTitle || "Free coverage found").trim();
+  const sourcesUsed = normalizeSources(parsed.sources_used || parsed.sourcesUsed);
+  const sourceIds = new Set(sourcesUsed.map((source) => source.id));
+  const summaryBullets = normalizeSummaryBullets(parsed.summary_bullets || parsed.summaryBullets || parsed.summary, sourceIds);
+  const fallbackSource = sourcesUsed[0] || {};
+  const sourceUrl = String(parsed.source_url || parsed.sourceUrl || fallbackSource.url || "").trim();
+  const sourceTitle = String(parsed.source_title || parsed.sourceTitle || fallbackSource.title || "Free coverage found").trim();
+  const bestMatchSource = String(parsed.best_match_source || parsed.bestMatchSource || fallbackSource.id || "").trim();
+  const sourcesCheckedCount = Math.max(Number(parsed.sources_checked_count || parsed.sourcesCheckedCount || sourcesUsed.length || 0), sourcesUsed.length);
   const keyMissingContext = String(parsed.key_missing_context || parsed.keyMissingContext || "").trim();
   const warning = String(parsed.warning || "").trim();
 
-  if (matchConfidence === "low") {
+  if (matchConfidence === "low" || summaryBullets.length === 0 || sourcesUsed.length === 0 || !sourceUrl) {
     return lowConfidenceResult(warning || "No reliable free coverage was found for the same story.", {
       sourceTitle,
       sourceUrl,
       sourceQuality,
-      keyMissingContext
+      keyMissingContext,
+      sourcesCheckedCount
     });
   }
 
@@ -111,8 +128,11 @@ function normalizeSummaryResult(parsed) {
     sourceQuality,
     sourceTitle,
     sourceUrl,
-    summary: summary.join("\n"),
-    summaryBullets: summary,
+    summary: summaryBullets.map((bullet) => bullet.text).join("\n"),
+    summaryBullets,
+    sourcesUsed,
+    sourcesCheckedCount,
+    bestMatchSource,
     keyMissingContext,
     warning: matchConfidence === "medium"
       ? warning || "This free source appears related, but may not fully match every detail of the locked article."
@@ -128,6 +148,9 @@ function lowConfidenceResult(warning, overrides = {}) {
     sourceUrl: overrides.sourceUrl || "",
     summary: "",
     summaryBullets: [],
+    sourcesUsed: [],
+    sourcesCheckedCount: Number(overrides.sourcesCheckedCount || 0),
+    bestMatchSource: "",
     keyMissingContext: overrides.keyMissingContext || "Brevi could not verify a free source covering the same story.",
     warning
   };
@@ -138,15 +161,49 @@ function normalizeRating(value) {
   return ["high", "medium", "low"].includes(rating) ? rating : "low";
 }
 
-function normalizeSummary(value) {
-  const items = Array.isArray(value)
-    ? value
-    : String(value || "")
-      .split("\n")
-      .map((line) => line.replace(/^[-*]\s*/, ""));
+function normalizeSummaryBullets(value, sourceIds) {
+  const items = Array.isArray(value) ? value : String(value || "")
+    .split("\n")
+    .map((line) => ({ text: line.replace(/^[-*]\s*/, ""), source_ids: [] }));
 
   return items
-    .map((item) => String(item || "").trim())
-    .filter(Boolean)
+    .map((item) => {
+      if (typeof item === "string") {
+        return { text: item.trim(), sourceIds: [] };
+      }
+
+      const ids = (Array.isArray(item.source_ids) ? item.source_ids : item.sourceIds || [])
+        .map((id) => String(id || "").trim())
+        .filter((id) => id && sourceIds.has(id));
+
+      return {
+        text: String(item.text || item.bullet || "").trim(),
+        sourceIds: ids
+      };
+    })
+    .filter((item) => item.text && item.sourceIds.length > 0)
     .slice(0, 5);
+}
+
+function normalizeSources(value) {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set();
+  return value
+    .map((source, index) => {
+      const url = String(source?.url || "").trim();
+      const id = String(source?.id || source?.source_id || `S${index + 1}`).trim();
+      if (!url || !id || seen.has(id)) return null;
+      seen.add(id);
+
+      return {
+        id,
+        publisher: String(source.publisher || "").trim(),
+        title: String(source.title || "").trim(),
+        url,
+        date: String(source.date || "").trim(),
+        reasonUsed: String(source.reason_used || source.reasonUsed || "").trim()
+      };
+    })
+    .filter(Boolean);
 }

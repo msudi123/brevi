@@ -91,6 +91,9 @@ async function handlePaywallDetected(article, tab) {
     title: article.title || result.title || "Brevi summary",
     summary: result.summary,
     summaryBullets: result.summaryBullets,
+    sourcesUsed: result.sourcesUsed,
+    sourcesCheckedCount: result.sourcesCheckedCount,
+    bestMatchSource: result.bestMatchSource,
     sourceTitle: result.sourceTitle,
     sourceUrl: result.sourceUrl,
     matchConfidence: result.matchConfidence,
@@ -175,16 +178,18 @@ function createSidebarShell() {
 
 function renderArticleIntelSidebar(state) {
   function markdownBulletsToHtml(markdown) {
-    const bullets = (Array.isArray(markdown) ? markdown : String(markdown)
-      .split("\n"))
-      .map((line) => String(line).trim().replace(/^[-*]\s*/, ""))
-      .filter(Boolean);
+    const bullets = Array.isArray(markdown)
+      ? markdown
+      : String(markdown)
+        .split("\n")
+        .map((line) => ({ text: String(line).trim().replace(/^[-*]\s*/, ""), sourceIds: [] }));
 
     if (bullets.length <= 1) {
-      return `<p>${formatInlineMarkdown(markdown)}</p>`;
+      const bullet = bullets[0];
+      return `<p>${formatInlineMarkdown(typeof bullet === "string" ? bullet : bullet?.text || markdown)}${renderSourceRefs(bullet)}</p>`;
     }
 
-    return `<ul>${bullets.map((line) => `<li>${formatInlineMarkdown(line)}</li>`).join("")}</ul>`;
+    return `<ul>${bullets.map((bullet) => `<li>${formatInlineMarkdown(typeof bullet === "string" ? bullet : bullet.text)}${renderSourceRefs(bullet)}</li>`).join("")}</ul>`;
   }
 
   function escapeHtml(value) {
@@ -209,6 +214,36 @@ function renderArticleIntelSidebar(state) {
   function formatRating(value) {
     const normalized = String(value || "low").toLowerCase();
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+
+  function renderSourceRefs(bullet) {
+    const ids = Array.isArray(bullet?.sourceIds) ? bullet.sourceIds : [];
+    if (ids.length === 0) return "";
+    return ` <span class="ai-refs">${ids.map((id) => escapeHtml(id)).join(", ")}</span>`;
+  }
+
+  function renderSourcesUsed(sources, bestMatchSource) {
+    if (!Array.isArray(sources) || sources.length === 0) return "";
+
+    const items = sources.map((source) => {
+      const best = source.id === bestMatchSource ? `<span class="ai-best">Best match</span>` : "";
+      const meta = [source.publisher, source.date].filter(Boolean).map(escapeHtml).join(" · ");
+      return `
+        <li>
+          <a href="${escapeAttribute(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.title || source.url)}</a>
+          ${best}
+          ${meta ? `<span>${meta}</span>` : ""}
+          ${source.reasonUsed ? `<p>${escapeHtml(source.reasonUsed)}</p>` : ""}
+        </li>
+      `;
+    }).join("");
+
+    return `
+      <div class="ai-sources-used">
+        <span>Sources used</span>
+        <ol>${items}</ol>
+      </div>
+    `;
   }
 
   const root = document.getElementById("brevi-root");
@@ -267,6 +302,10 @@ function renderArticleIntelSidebar(state) {
   const missingContext = state.keyMissingContext
     ? `<div class="ai-context"><span>What may be missing</span><p>${escapeHtml(state.keyMissingContext)}</p></div>`
     : "";
+  const sourcesUsed = renderSourcesUsed(state.sourcesUsed, state.bestMatchSource);
+  const sourcesChecked = Number.isFinite(state.sourcesCheckedCount)
+    ? `<p class="ai-muted">Sources checked: ${escapeHtml(state.sourcesCheckedCount)}</p>`
+    : "";
 
   body.innerHTML = `
     <div class="ai-ratings">
@@ -279,7 +318,9 @@ function renderArticleIntelSidebar(state) {
       ${source}
     </div>
     <div class="ai-summary">${summaryHtml}</div>
+    ${sourcesUsed}
     ${missingContext}
+    ${sourcesChecked}
     <p class="ai-muted">${Number.isFinite(state.remaining) ? `${state.remaining} free summaries left today.` : ""}</p>
   `;
 }

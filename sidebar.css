@@ -133,6 +133,20 @@
   font-weight: 800;
 }
 
+#brevi-root .ai-refs {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #edf6f9;
+  color: #005f73;
+  font-size: 11px;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
 #brevi-root .ai-ratings {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -185,6 +199,71 @@
 
 #brevi-root .ai-context p {
   margin-bottom: 0;
+}
+
+#brevi-root .ai-sources-used {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(23, 32, 42, 0.1);
+}
+
+#brevi-root .ai-sources-used > span {
+  display: block;
+  margin-bottom: 8px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+#brevi-root .ai-sources-used ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+#brevi-root .ai-sources-used li {
+  padding-left: 2px;
+}
+
+#brevi-root .ai-sources-used a {
+  color: #005f73;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+#brevi-root .ai-sources-used a:hover {
+  text-decoration: underline;
+}
+
+#brevi-root .ai-sources-used li > span {
+  display: block;
+  margin-top: 3px;
+  color: #667085;
+  font-size: 12px;
+}
+
+#brevi-root .ai-sources-used p {
+  margin-top: 4px;
+  color: #344054;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+#brevi-root .ai-best {
+  display: inline-flex;
+  width: fit-content;
+  margin: 4px 0 0;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #ecfdf3;
+  color: #027a48;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 #brevi-root .ai-button {
