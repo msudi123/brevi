@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_URL = "https://brevi-backend.vercel.app";
+const DEFAULT_BACKEND_URL = "https://brevi-psi.vercel.app";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "BREVI_PAYWALL_DETECTED" || message?.type === "ARTICLE_INTEL_PAYWALL_DETECTED") {

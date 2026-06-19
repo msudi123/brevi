@@ -5,7 +5,7 @@ const summarize = document.getElementById("summarize");
 const reset = document.getElementById("reset");
 const status = document.getElementById("status");
 const usage = document.getElementById("usage");
-const DEFAULT_BACKEND_URL = "https://brevi-backend.vercel.app";
+const DEFAULT_BACKEND_URL = "https://brevi-psi.vercel.app";
 
 chrome.storage.local.get(["backendUrl", "accountEmail", "installId"], async (data) => {
   backendUrl.value = data.backendUrl || DEFAULT_BACKEND_URL;

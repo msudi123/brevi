@@ -56,7 +56,7 @@ WHOP_CHECKOUT_URL=https://whop.com
 After deployment, set the extension backend URL to:
 
 ```text
-https://your-vercel-domain.vercel.app
+https://brevi-psi.vercel.app
 ```
 
 For production, replace `PUBLIC_EXTENSION_ORIGIN=*` with your Chrome extension origin once the extension ID is stable.

@@ -21,7 +21,7 @@ Brevi does not bypass paywalls, unlock subscriber-only content, or copy the payw
 
 1. Load the extension.
 2. Open the extension popup and confirm the backend URL is set.
-3. Visit the test page: `https://YOUR-VERCEL-DOMAIN.vercel.app/test-paywall` or local `http://127.0.0.1:8787/test-paywall`.
+3. Visit the test page: `https://brevi-psi.vercel.app/test-paywall` or local `http://127.0.0.1:8787/test-paywall`.
 4. Confirm the Brevi sidebar opens automatically.
 5. Confirm the sidebar shows a free source summary.
 6. Confirm the popup usage counter increments.
