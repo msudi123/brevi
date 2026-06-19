@@ -1,0 +1,15 @@
+{
+  "name": "brevi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Brevi Chrome extension backend and MV3 extension files.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check api/health.js && node --check api/summarize.js && node --check api/test-paywall.js && node --check api/usage/index.js && node --check api/usage/reset.js && node --check background.js && node --check content.js && node --check popup.js",
+    "package:extension": "node scripts/package-extension.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

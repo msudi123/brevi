@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/test-paywall",
+      "destination": "/api/test-paywall"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/health"
+    }
+  ]
+}

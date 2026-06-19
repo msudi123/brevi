@@ -1,0 +1,200 @@
+#brevi-root {
+  all: initial;
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 2147483647;
+  width: min(390px, calc(100vw - 36px));
+  color: #17202a;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+#brevi-root *,
+#brevi-root *::before,
+#brevi-root *::after {
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+#brevi-root .ai-shell {
+  overflow: hidden;
+  border: 1px solid rgba(23, 32, 42, 0.12);
+  border-radius: 8px;
+  background: #fffdf8;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22);
+}
+
+#brevi-root .ai-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid rgba(23, 32, 42, 0.1);
+  background: #f7fbff;
+}
+
+#brevi-root .ai-kicker {
+  margin-bottom: 6px;
+  color: #216869;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+#brevi-root h2 {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: #17202a;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+#brevi-root .ai-close {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(23, 32, 42, 0.14);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #17202a;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+#brevi-root .ai-close:hover {
+  background: #edf6f9;
+}
+
+#brevi-root .ai-body {
+  max-height: min(620px, calc(100vh - 150px));
+  overflow-y: auto;
+  padding: 18px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+#brevi-root p {
+  margin: 0 0 12px;
+}
+
+#brevi-root .ai-muted {
+  margin-top: 14px;
+  color: #667085;
+  font-size: 12px;
+}
+
+#brevi-root .ai-source-wrap {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(23, 32, 42, 0.1);
+}
+
+#brevi-root .ai-source-wrap span:first-child {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+#brevi-root .ai-source {
+  color: #005f73;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+#brevi-root .ai-source:hover {
+  text-decoration: underline;
+}
+
+#brevi-root .ai-summary ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+#brevi-root .ai-summary li {
+  padding-left: 2px;
+}
+
+#brevi-root .ai-summary strong {
+  font-weight: 800;
+}
+
+#brevi-root .ai-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  margin-top: 4px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: #216869;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+#brevi-root .ai-button:hover {
+  background: #1a5556;
+}
+
+#brevi-root .ai-loading {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 28px;
+  margin-bottom: 10px;
+}
+
+#brevi-root .ai-loading span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #216869;
+  animation: brevi-pulse 1s infinite ease-in-out;
+}
+
+#brevi-root .ai-loading span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+#brevi-root .ai-loading span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes brevi-pulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 520px) {
+  #brevi-root {
+    top: 10px;
+    right: 10px;
+    width: calc(100vw - 20px);
+  }
+
+  #brevi-root .ai-body {
+    max-height: calc(100vh - 125px);
+  }
+}

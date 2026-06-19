@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Brevi</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <h1>Brevi</h1>
+    <p>Connect the extension to your Brevi backend.</p>
+
+    <label for="backendUrl">Backend URL</label>
+    <input id="backendUrl" type="url" autocomplete="off" placeholder="https://brevi-backend.vercel.app">
+
+    <label for="accountEmail">Account email</label>
+    <input id="accountEmail" type="email" autocomplete="email" placeholder="you@example.com">
+
+    <button id="save" class="primary" type="button">Save settings</button>
+    <button id="summarize" class="secondary" type="button">Summarize current page</button>
+
+    <div class="panel">
+      <p id="usage">Backend status: not checked</p>
+      <button id="reset" class="secondary" type="button">Reset usage</button>
+    </div>
+
+    <div id="status" class="status" role="status"></div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
