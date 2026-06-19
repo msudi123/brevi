@@ -54,7 +54,26 @@ export async function summarizeWithOpenAI({ title, articleUrl, config }) {
     "- Separate sources checked from sources used.",
     "- If the source URL is missing, do not use that source.",
     "- If match_confidence is low, summary_bullets must be [] and sources_used may be [].",
-    "- Never return internal IDs like turn0search8, turn0search3, source_ids, or search result IDs."
+    "- Never return internal IDs like turn0search8, turn0search3, source_ids, or search result IDs.",
+    "",
+    "Read original? recommendation:",
+    "After summarizing the free sources, decide whether the original paywalled article is likely worth opening.",
+    "You cannot access the full paywalled article body unless it is visibly available on the page. Do not pretend to know what the original contains.",
+    "Base the recommendation only on the locked article title, locked article publisher/domain, visible metadata or snippet, visible intro text if available, free sources found, number and quality of free sources, how complete the free coverage appears, and whether the original appears to be news, analysis, investigation, interview, opinion, exclusive reporting, or specialist commentary.",
+    "Return yes when the original appears to be an investigation, exclusive, interview, analysis, opinion, specialist report, deep feature, weakly covered by free sources, or likely to provide original reporting or specialist context.",
+    "Return maybe when free sources cover the core facts but the original may include extra context, quotes, analysis, or publisher-specific reporting; if uncertain, choose maybe.",
+    "Return probably_not when multiple reliable free sources cover the same core facts and the story appears to be a public announcement, press release, earnings report, government statement, sports result, market update, widely syndicated breaking news, or generic factual report.",
+    "Strict wording for this recommendation: do not say the original is definitely not worth paying for, do not discourage supporting publishers, do not claim free sources fully replace the original, do not use aggressive anti-paywall language, and be transparent that Brevi cannot see the full original article body.",
+    "If recommendation confidence is low, use cautious wording and prefer maybe.",
+    "",
+    "Also include read_original_recommendation with these keys:",
+    "read_original_recommendation.label: yes | maybe | probably_not",
+    "read_original_recommendation.confidence: high | medium | low",
+    "read_original_recommendation.reason: neutral user-facing string",
+    "read_original_recommendation.open_web_coverage_strength: strong | moderate | weak",
+    "read_original_recommendation.possible_unique_value: array containing only values like exclusive reporting, original quotes, deeper analysis, local context, expert commentary, original data",
+    "read_original_recommendation.why: array of short neutral strings",
+    "read_original_recommendation.cta_primary: open_original | open_free_source"
   ].join("\n");
 
   const openaiResponse = await fetch(config.openaiEndpoint, {
@@ -123,6 +142,17 @@ function normalizeSummaryResult(parsed, fallbackLockedArticle) {
   const sourcesCheckedCount = Math.max(Number(parsed.sources_checked_count || parsed.sourcesCheckedCount || sourcesUsed.length || 0), sourcesUsed.length);
   const missingContext = String(parsed.missing_context || parsed.missingContext || parsed.key_missing_context || parsed.keyMissingContext || "").trim();
   const warning = String(parsed.warning || "").trim();
+  const readOriginalRecommendation = normalizeReadOriginalRecommendation(
+    parsed.read_original_recommendation || parsed.readOriginalRecommendation,
+    {
+      matchConfidence,
+      sourceQuality,
+      sourcesUsedCount: sourcesUsed.length,
+      sourcesCheckedCount,
+      lockedArticle,
+      bestFreeMatch
+    }
+  );
 
   if (matchConfidence === "low" || summaryBullets.length === 0 || sourcesUsed.length === 0 || !sourceUrl) {
     return lowConfidenceResult(warning || "No reliable free coverage found.", {
@@ -132,7 +162,8 @@ function normalizeSummaryResult(parsed, fallbackLockedArticle) {
       sourceUrl,
       sourceQuality,
       missingContext,
-      sourcesCheckedCount
+      sourcesCheckedCount,
+      readOriginalRecommendation
     });
   }
 
@@ -149,6 +180,7 @@ function normalizeSummaryResult(parsed, fallbackLockedArticle) {
     sourcesCheckedCount,
     missingContext,
     keyMissingContext: missingContext,
+    readOriginalRecommendation,
     warning: matchConfidence === "medium"
       ? warning || "This free source appears related, but may not fully match every detail of the locked article."
       : warning
@@ -171,6 +203,14 @@ function lowConfidenceResult(warning, overrides = {}) {
     bestMatchSource: "",
     missingContext: overrides.missingContext || "Brevi could not access the original paywalled article body, so details unique to that article may be missing.",
     keyMissingContext: overrides.missingContext || "Brevi could not access the original paywalled article body, so details unique to that article may be missing.",
+    readOriginalRecommendation: normalizeReadOriginalRecommendation(overrides.readOriginalRecommendation, {
+      matchConfidence: "low",
+      sourceQuality: overrides.sourceQuality || "low",
+      sourcesUsedCount: 0,
+      sourcesCheckedCount: Number(overrides.sourcesCheckedCount || 0),
+      lockedArticle,
+      bestFreeMatch: overrides.bestFreeMatch || {}
+    }),
     warning
   };
 }
@@ -267,6 +307,111 @@ function normalizeBestFreeMatch(value, fallback = {}) {
     date: String(value?.date || fallback.date || "").trim(),
     reason: String(value?.reason || fallback.reasonUsed || "").trim()
   };
+}
+
+function normalizeReadOriginalRecommendation(value, context = {}) {
+  const label = normalizeRecommendationLabel(value?.label);
+  const confidence = normalizeRating(value?.confidence || (context.matchConfidence === "low" ? "low" : "medium"));
+  const coverageStrength = normalizeCoverageStrength(value?.open_web_coverage_strength || value?.openWebCoverageStrength, context);
+  const ctaPrimary = normalizeCtaPrimary(value?.cta_primary || value?.ctaPrimary, label);
+  const possibleUniqueValue = normalizeUniqueValue(value?.possible_unique_value || value?.possibleUniqueValue);
+  const why = normalizeWhyList(value?.why);
+  const reason = cleanText(value?.reason || defaultRecommendationReason(label, coverageStrength), 500);
+
+  return {
+    label,
+    confidence,
+    reason,
+    openWebCoverageStrength: coverageStrength,
+    possibleUniqueValue,
+    why: why.length ? why : defaultRecommendationWhy(label, context),
+    ctaPrimary
+  };
+}
+
+function normalizeRecommendationLabel(value) {
+  const label = String(value || "").trim().toLowerCase().replace(/[-\s]+/g, "_");
+  return ["yes", "maybe", "probably_not"].includes(label) ? label : "maybe";
+}
+
+function normalizeCoverageStrength(value, context) {
+  const strength = String(value || "").trim().toLowerCase();
+  if (["strong", "moderate", "weak"].includes(strength)) return strength;
+  if (context.matchConfidence === "high" && context.sourcesUsedCount > 1) return "strong";
+  if (context.matchConfidence === "low") return "weak";
+  return "moderate";
+}
+
+function normalizeCtaPrimary(value, label) {
+  const cta = String(value || "").trim().toLowerCase();
+  if (cta === "open_free_source" || cta === "open_original") return cta;
+  return label === "probably_not" ? "open_free_source" : "open_original";
+}
+
+function normalizeUniqueValue(value) {
+  const allowed = new Set([
+    "exclusive reporting",
+    "original quotes",
+    "deeper analysis",
+    "local context",
+    "expert commentary",
+    "original data"
+  ]);
+
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .map((item) => String(item || "").trim().toLowerCase())
+    .filter((item) => allowed.has(item)))]
+    .slice(0, 6);
+}
+
+function normalizeWhyList(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => cleanText(item, 160))
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function defaultRecommendationReason(label, coverageStrength) {
+  if (label === "yes") {
+    return "The original may include reporting, analysis, quotes, or specialist context that Brevi cannot verify from free sources.";
+  }
+
+  if (label === "probably_not") {
+    return "Open-web coverage appears sufficient for the main facts. The original may still be useful if you prefer the publisher's full reporting.";
+  }
+
+  if (coverageStrength === "weak") {
+    return "Brevi could not verify enough open-web coverage, so the original may be useful for the publisher's full reporting.";
+  }
+
+  return "Open-web sources cover the core facts, but the original may include extra reporting, quotes, or analysis that Brevi cannot verify.";
+}
+
+function defaultRecommendationWhy(label, context) {
+  if (context.matchConfidence === "low") {
+    return [
+      "No reliable free match was found",
+      "The original article body is unavailable",
+      "Unique details may be missing"
+    ];
+  }
+
+  if (label === "probably_not") {
+    return [
+      "Best free match found",
+      "Core facts appear covered",
+      "The original may still include publisher-specific details"
+    ];
+  }
+
+  return [
+    "Best free match found",
+    "Core facts are covered",
+    "The original article body is unavailable",
+    "Unique details may be missing"
+  ];
 }
 
 function buildLockedArticle(title, articleUrl) {

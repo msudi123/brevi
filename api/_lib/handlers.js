@@ -129,6 +129,7 @@ export async function handleSummarize(request, response) {
       sourceQuality: result.sourceQuality,
       missingContext: result.missingContext,
       keyMissingContext: result.keyMissingContext,
+      readOriginalRecommendation: result.readOriginalRecommendation,
       warning: result.warning,
       remaining: Math.max(config.freeDailyLimit - nextUsage.count, 0),
       paid: false

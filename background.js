@@ -103,6 +103,7 @@ async function handlePaywallDetected(article, tab) {
     sourceQuality: result.sourceQuality,
     missingContext: result.missingContext,
     keyMissingContext: result.keyMissingContext,
+    readOriginalRecommendation: result.readOriginalRecommendation,
     warning: result.warning,
     remaining: result.remaining
   });
@@ -221,6 +222,13 @@ function renderArticleIntelSidebar(state) {
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 
+  function formatRecommendationLabel(value) {
+    const normalized = String(value || "maybe").toLowerCase();
+    if (normalized === "yes") return "Yes";
+    if (normalized === "probably_not") return "Probably not";
+    return "Maybe";
+  }
+
   function renderSourceChips(bullet) {
     const sources = Array.isArray(bullet?.sources) ? bullet.sources : [];
     if (sources.length === 0) return "";
@@ -278,6 +286,74 @@ function renderArticleIntelSidebar(state) {
         ${meta ? `<p class="ai-domain">${meta}</p>` : ""}
         ${best.reason ? `<p>${escapeHtml(best.reason)}</p>` : ""}
         ${url ? `<a class="ai-button ai-button-small" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">Open source article</a>` : ""}
+      </section>
+    `;
+  }
+
+  function renderReadOriginalRecommendation(recommendation, lockedArticle, bestFreeMatch, sourceUrl) {
+    const rec = recommendation || {};
+    const label = ["yes", "maybe", "probably_not"].includes(String(rec.label || "").toLowerCase())
+      ? String(rec.label).toLowerCase()
+      : "maybe";
+    const reason = rec.reason || "Open-web sources cover the core facts, but the original may include extra reporting, quotes, or analysis that Brevi cannot verify.";
+    const why = Array.isArray(rec.why) && rec.why.length
+      ? rec.why
+      : [
+        "Best free match found",
+        "Core facts are covered",
+        "The original article body is unavailable",
+        "Unique details may be missing"
+      ];
+    const uniqueValues = Array.isArray(rec.possibleUniqueValue) ? rec.possibleUniqueValue : [];
+    const originalUrl = lockedArticle?.url || "";
+    const freeUrl = bestFreeMatch?.url || sourceUrl || "";
+    const primaryFirst = rec.ctaPrimary === "open_free_source" ? "free" : "original";
+    const actions = [
+      originalUrl ? {
+        type: "original",
+        label: "Open original",
+        url: originalUrl,
+        className: primaryFirst === "original" ? "ai-button" : "ai-button ai-secondary"
+      } : null,
+      freeUrl ? {
+        type: "free",
+        label: "Open free source",
+        url: freeUrl,
+        className: primaryFirst === "free" ? "ai-button" : "ai-button ai-secondary"
+      } : null
+    ].filter(Boolean).sort((a, b) => {
+      if (a.type === primaryFirst) return -1;
+      if (b.type === primaryFirst) return 1;
+      return 0;
+    });
+
+    return `
+      <section class="ai-section ai-read-original">
+        <div class="ai-read-heading">
+          <h3>Read original?</h3>
+          <span class="ai-read-badge ai-read-${escapeAttribute(label)}">${escapeHtml(formatRecommendationLabel(label))}</span>
+        </div>
+        <p>${escapeHtml(reason)}</p>
+        <div class="ai-read-meta">
+          <span>Confidence: <strong>${escapeHtml(formatRating(rec.confidence))}</strong></span>
+          <span>Open-web coverage: <strong>${escapeHtml(formatRating(rec.openWebCoverageStrength))}</strong></span>
+        </div>
+        <div class="ai-read-why">
+          <span>Why Brevi says this</span>
+          <ul>${why.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </div>
+        ${uniqueValues.length ? `
+          <div class="ai-value-row">
+            ${uniqueValues.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+          </div>
+        ` : ""}
+        ${actions.length ? `
+          <div class="ai-read-actions">
+            ${actions.map((action) => `
+              <a class="${escapeAttribute(action.className)} ai-button-small" href="${escapeAttribute(action.url)}" target="_blank" rel="noreferrer">${escapeHtml(action.label)}</a>
+            `).join("")}
+          </div>
+        ` : ""}
       </section>
     `;
   }
@@ -354,6 +430,12 @@ function renderArticleIntelSidebar(state) {
   const bestMatchUrl = state.bestFreeMatch?.url || state.sourceUrl || "";
   const sourcesUsed = renderSourcesUsed(state.sourcesUsed, bestMatchUrl);
   const sourceStats = renderSourceStats(state.sourcesCheckedCount, sourcesUsedCount);
+  const readOriginal = renderReadOriginalRecommendation(
+    state.readOriginalRecommendation,
+    state.lockedArticle,
+    state.bestFreeMatch,
+    state.sourceUrl
+  );
 
   body.innerHTML = `
     <div class="ai-ratings">
@@ -368,6 +450,7 @@ function renderArticleIntelSidebar(state) {
       <h3>Key points from free coverage</h3>
       <div class="ai-summary">${summaryHtml}</div>
     </section>
+    ${readOriginal}
     ${sourcesUsed}
     ${missingContext}
     <div class="ai-footer">
