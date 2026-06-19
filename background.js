@@ -90,8 +90,13 @@ async function handlePaywallDetected(article, tab) {
     status: "success",
     title: article.title || result.title || "Brevi summary",
     summary: result.summary,
+    summaryBullets: result.summaryBullets,
     sourceTitle: result.sourceTitle,
     sourceUrl: result.sourceUrl,
+    matchConfidence: result.matchConfidence,
+    sourceQuality: result.sourceQuality,
+    keyMissingContext: result.keyMissingContext,
+    warning: result.warning,
     remaining: result.remaining
   });
 }
@@ -170,13 +175,9 @@ function createSidebarShell() {
 
 function renderArticleIntelSidebar(state) {
   function markdownBulletsToHtml(markdown) {
-    const lines = String(markdown)
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const bullets = lines
-      .map((line) => line.replace(/^[-*]\s*/, ""))
+    const bullets = (Array.isArray(markdown) ? markdown : String(markdown)
+      .split("\n"))
+      .map((line) => String(line).trim().replace(/^[-*]\s*/, ""))
       .filter(Boolean);
 
     if (bullets.length <= 1) {
@@ -205,6 +206,11 @@ function renderArticleIntelSidebar(state) {
       .replace(/__([^_]+)__/g, "<strong>$1</strong>");
   }
 
+  function formatRating(value) {
+    const normalized = String(value || "low").toLowerCase();
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+
   const root = document.getElementById("brevi-root");
   if (!root) return;
 
@@ -219,7 +225,7 @@ function renderArticleIntelSidebar(state) {
       <div class="ai-loading">
         <span></span><span></span><span></span>
       </div>
-      <p>Looking for free coverage and preparing a concise summary.</p>
+      <p>Checking whether a free source covers the same story.</p>
     `;
     return;
   }
@@ -248,17 +254,32 @@ function renderArticleIntelSidebar(state) {
     return;
   }
 
-  const summaryHtml = markdownBulletsToHtml(state.summary || "No summary returned.");
+  const isLowConfidence = state.matchConfidence === "low";
+  const summaryHtml = isLowConfidence
+    ? `<p>${escapeHtml(state.warning || "No reliable free coverage was found for the same story.")}</p>`
+    : markdownBulletsToHtml(state.summaryBullets || state.summary || "No summary returned.");
   const source = state.sourceUrl
     ? `<a class="ai-source" href="${escapeAttribute(state.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(state.sourceTitle || state.sourceUrl)}</a>`
     : `<span class="ai-source">${escapeHtml(state.sourceTitle || "Source not provided")}</span>`;
+  const warning = state.warning
+    ? `<div class="ai-warning">${escapeHtml(state.warning)}</div>`
+    : "";
+  const missingContext = state.keyMissingContext
+    ? `<div class="ai-context"><span>What may be missing</span><p>${escapeHtml(state.keyMissingContext)}</p></div>`
+    : "";
 
   body.innerHTML = `
+    <div class="ai-ratings">
+      <span>Match: <strong>${escapeHtml(formatRating(state.matchConfidence))}</strong></span>
+      <span>Source quality: <strong>${escapeHtml(formatRating(state.sourceQuality))}</strong></span>
+    </div>
+    ${warning}
     <div class="ai-source-wrap">
       <span>Free source</span>
       ${source}
     </div>
     <div class="ai-summary">${summaryHtml}</div>
+    ${missingContext}
     <p class="ai-muted">${Number.isFinite(state.remaining) ? `${state.remaining} free summaries left today.` : ""}</p>
   `;
 }

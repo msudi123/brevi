@@ -93,7 +93,7 @@
 #brevi-root .ai-source-wrap {
   display: grid;
   gap: 6px;
-  margin-bottom: 16px;
+  margin: 14px 0 16px;
   padding-bottom: 14px;
   border-bottom: 1px solid rgba(23, 32, 42, 0.1);
 }
@@ -131,6 +131,60 @@
 
 #brevi-root .ai-summary strong {
   font-weight: 800;
+}
+
+#brevi-root .ai-ratings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+#brevi-root .ai-ratings span {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(23, 32, 42, 0.1);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+#brevi-root .ai-ratings strong {
+  display: block;
+  color: #17202a;
+  font-size: 13px;
+}
+
+#brevi-root .ai-warning {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(180, 83, 9, 0.25);
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #7c2d12;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+#brevi-root .ai-context {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(23, 32, 42, 0.1);
+}
+
+#brevi-root .ai-context span {
+  display: block;
+  margin-bottom: 6px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+#brevi-root .ai-context p {
+  margin-bottom: 0;
 }
 
 #brevi-root .ai-button {
@@ -196,5 +250,9 @@
 
   #brevi-root .ai-body {
     max-height: calc(100vh - 125px);
+  }
+
+  #brevi-root .ai-ratings {
+    grid-template-columns: 1fr;
   }
 }

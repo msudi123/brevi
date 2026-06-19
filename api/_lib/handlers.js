@@ -79,7 +79,7 @@ export async function handleSummarize(request, response) {
   try {
     const usage = await getUsage({ installId, email, config });
     if (usage.count >= config.freeDailyLimit) {
-      await recordSummaryEvent({
+      await safeRecordSummaryEvent({
         installId,
         email,
         articleUrl,
@@ -98,13 +98,18 @@ export async function handleSummarize(request, response) {
     }
 
     const result = await summarizeWithOpenAI({ title, articleUrl, config });
-    await incrementUsage({ installId, email, config });
-    await recordSummaryEvent({
+    const shouldCountUsage = result.matchConfidence === "high" || result.matchConfidence === "medium";
+    if (shouldCountUsage) {
+      await incrementUsage({ installId, email, config });
+    }
+    await safeRecordSummaryEvent({
       installId,
       email,
       articleUrl,
       status: "success",
       sourceUrl: result.sourceUrl,
+      matchConfidence: result.matchConfidence,
+      sourceQuality: result.sourceQuality,
       config
     });
 
@@ -114,11 +119,16 @@ export async function handleSummarize(request, response) {
       sourceTitle: result.sourceTitle,
       sourceUrl: result.sourceUrl,
       summary: result.summary,
+      summaryBullets: result.summaryBullets,
+      matchConfidence: result.matchConfidence,
+      sourceQuality: result.sourceQuality,
+      keyMissingContext: result.keyMissingContext,
+      warning: result.warning,
       remaining: Math.max(config.freeDailyLimit - nextUsage.count, 0),
       paid: false
     }, config);
   } catch (error) {
-    await recordSummaryEvent({
+    await safeRecordSummaryEvent({
       installId,
       email,
       articleUrl,
@@ -139,4 +149,12 @@ function classifyError(error) {
   if (message.includes("supabase")) return "supabase";
   if (message.includes("missing")) return "config";
   return "unknown";
+}
+
+async function safeRecordSummaryEvent(event) {
+  try {
+    await recordSummaryEvent(event);
+  } catch (error) {
+    console.error("Brevi summary event logging failed:", error);
+  }
 }

@@ -56,7 +56,17 @@ export async function resetUsage({ installId, email, config }) {
   });
 }
 
-export async function recordSummaryEvent({ installId, email, articleUrl, status, sourceUrl = "", errorCategory = "", config }) {
+export async function recordSummaryEvent({
+  installId,
+  email,
+  articleUrl,
+  status,
+  sourceUrl = "",
+  matchConfidence = "",
+  sourceQuality = "",
+  errorCategory = "",
+  config
+}) {
   if (!hasSupabaseConfig(config)) return;
 
   const userKey = userKeyFor(installId, email);
@@ -69,6 +79,8 @@ export async function recordSummaryEvent({ installId, email, articleUrl, status,
       article_url_hash: articleHash,
       status,
       source_url: sourceUrl || null,
+      match_confidence: cleanNullable(matchConfidence),
+      source_quality: cleanNullable(sourceQuality),
       model: config.openaiModel,
       error_category: errorCategory || null
     })

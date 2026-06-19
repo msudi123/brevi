@@ -20,10 +20,18 @@ create table if not exists public.summary_events (
   article_url_hash text not null,
   status text not null check (status in ('success', 'limit', 'error')),
   source_url text,
+  match_confidence text check (match_confidence in ('high', 'medium', 'low')),
+  source_quality text check (source_quality in ('high', 'medium', 'low')),
   model text,
   error_category text,
   created_at timestamptz not null default now()
 );
+
+alter table public.summary_events
+  add column if not exists match_confidence text check (match_confidence in ('high', 'medium', 'low'));
+
+alter table public.summary_events
+  add column if not exists source_quality text check (source_quality in ('high', 'medium', 'low'));
 
 create index if not exists summary_events_user_key_created_at_idx
   on public.summary_events (user_key, created_at desc);
