@@ -43,7 +43,7 @@ export function getConfig() {
     lemonSqueezyVariantStarter: process.env.LEMONSQUEEZY_VARIANT_STARTER || "",
     lemonSqueezyVariantReader: process.env.LEMONSQUEEZY_VARIANT_READER || "",
     lemonSqueezyVariantPower: process.env.LEMONSQUEEZY_VARIANT_POWER || "",
-    publicAppUrl: trimTrailingSlash(process.env.PUBLIC_APP_URL || process.env.VERCEL_URL || ""),
+    publicAppUrl: normalizePublicUrl(process.env.PUBLIC_APP_URL || process.env.VERCEL_URL || ""),
     extensionOrigin: process.env.PUBLIC_EXTENSION_ORIGIN || "*",
     whopCheckoutUrl: process.env.WHOP_CHECKOUT_URL || "https://whop.com",
     nodeEnv: process.env.NODE_ENV || "development"
@@ -56,4 +56,11 @@ export function hasSupabaseConfig(config = getConfig()) {
 
 function trimTrailingSlash(value) {
   return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function normalizePublicUrl(value) {
+  const trimmed = trimTrailingSlash(value);
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
 }
