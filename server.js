@@ -130,6 +130,9 @@ async function serveAsset(pathname, response, method = "GET") {
 function contentTypeFor(filePath) {
   if (extname(filePath).toLowerCase() === ".png") return "image/png";
   if (extname(filePath).toLowerCase() === ".svg") return "image/svg+xml";
+  if (extname(filePath).toLowerCase() === ".ico") return "image/x-icon";
+  if (extname(filePath).toLowerCase() === ".webmanifest") return "application/manifest+json";
+  if (extname(filePath).toLowerCase() === ".json") return "application/json";
   if (extname(filePath).toLowerCase() === ".jpg" || extname(filePath).toLowerCase() === ".jpeg") return "image/jpeg";
   return "application/octet-stream";
 }
