@@ -37,6 +37,8 @@ export async function createLemonCheckout({ pack, installId, email, config }) {
 
   const appUrl = config.publicAppUrl || "https://brevi-psi.vercel.app";
   const userKey = userKeyFor(installId);
+  const numericVariantId = Number(variantId);
+  const enabledVariantId = Number.isFinite(numericVariantId) ? numericVariantId : variantId;
   const payload = {
     data: {
       type: "checkouts",
@@ -56,11 +58,11 @@ export async function createLemonCheckout({ pack, installId, email, config }) {
           logo: true,
           desc: true,
           discount: true,
-          dark: false,
           subscription_preview: false,
           button_color: "#14B8A6"
         },
         product_options: {
+          enabled_variants: [enabledVariantId],
           redirect_url: `${appUrl}/api/credits/confirm?pack=${encodeURIComponent(pack.id)}`,
           receipt_button_text: "Return to Brevi",
           receipt_link_url: appUrl,

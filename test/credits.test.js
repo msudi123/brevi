@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import {
   availableCreditPacks,
+  createLemonCheckout,
   packForId,
   packForVariantId,
   parseLemonOrderEvent,
@@ -67,4 +68,44 @@ test("parseLemonOrderEvent reads custom install data and maps credits", () => {
   assert.equal(parsed.email, "reader@example.com");
   assert.equal(parsed.pack.id, "reader");
   assert.equal(parsed.credits, 150);
+});
+
+test("createLemonCheckout constrains custom checkout to the selected variant", async () => {
+  const previousFetch = global.fetch;
+  let payload;
+
+  try {
+    global.fetch = async (url, options) => {
+      payload = JSON.parse(options.body);
+      return {
+        ok: true,
+        async json() {
+          return {
+            data: {
+              attributes: {
+                url: "https://example.lemonsqueezy.com/checkout/custom/test"
+              }
+            }
+          };
+        }
+      };
+    };
+
+    await createLemonCheckout({
+      pack: packForId("starter"),
+      installId: "install-abc",
+      email: "reader@example.com",
+      config: {
+        ...config,
+        lemonSqueezyApiKey: "api-key",
+        lemonSqueezyStoreId: "123",
+        publicAppUrl: "https://brevi.example"
+      }
+    });
+
+    assert.deepEqual(payload.data.attributes.product_options.enabled_variants, [101]);
+    assert.equal("dark" in payload.data.attributes.checkout_options, false);
+  } finally {
+    global.fetch = previousFetch;
+  }
 });
