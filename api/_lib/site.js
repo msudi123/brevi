@@ -5,7 +5,6 @@ const NAV_ITEMS = [
   { href: "/", label: "Home" },
   { href: "/privacy", label: "Privacy" },
   { href: "/terms", label: "Terms" },
-  { href: "/refunds", label: "Refunds" },
   { href: "/support", label: "Support" }
 ];
 
@@ -51,11 +50,6 @@ function pages(config) {
       title: "Terms of Service - Brevi",
       description: "Read the terms that apply when using the Brevi Chrome extension and credit-based summary service.",
       body: renderTerms()
-    },
-    "/refunds": {
-      title: "Refund Policy - Brevi",
-      description: "Review Brevi's credit purchase, refund, and support policy.",
-      body: renderRefunds()
     },
     "/support": {
       title: "Support - Brevi",
@@ -234,25 +228,6 @@ function renderTerms() {
   `);
 }
 
-function renderRefunds() {
-  return legalLayout("Refund Policy", `
-    <p class="updated">Last updated: ${LAST_UPDATED}</p>
-    <p>Brevi sells credit packs for generating briefs. We want purchases to feel clear and fair.</p>
-
-    <h2>Refund eligibility</h2>
-    <p>Contact us at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> within 14 days of purchase if credits were not delivered, a duplicate purchase occurred, or a technical problem prevented reasonable use.</p>
-
-    <h2>Used credits</h2>
-    <p>Credits already used to generate briefs may not be refundable except where required by law or where we determine that a service error caused the issue.</p>
-
-    <h2>How to request a refund</h2>
-    <p>Email your purchase email, order receipt, and a short explanation. We may verify the order through Lemon Squeezy before processing the request.</p>
-
-    <h2>Processing</h2>
-    <p>Approved refunds are usually returned to the original payment method through the payment processor. Timing depends on the processor and your bank.</p>
-  `);
-}
-
 function renderSupport() {
   return legalLayout("Support", `
     <p>Need help with Brevi? Email <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
@@ -340,7 +315,6 @@ function renderPage({ title, description, body, path, config }) {
       <nav aria-label="Footer navigation">
         <a href="/privacy">Privacy</a>
         <a href="/terms">Terms</a>
-        <a href="/refunds">Refunds</a>
         <a href="/support">Support</a>
         <a href="/security">Security</a>
       </nav>
@@ -424,7 +398,7 @@ Sitemap: ${base}/sitemap.xml
 
 function renderSitemap(config) {
   const base = siteUrl(config);
-  const paths = ["/", "/privacy", "/terms", "/refunds", "/support", "/security"];
+  const paths = ["/", "/privacy", "/terms", "/support", "/security"];
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${paths.map((path) => `  <url><loc>${base}${path === "/" ? "" : path}</loc></url>`).join("\n")}

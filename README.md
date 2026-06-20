@@ -89,7 +89,6 @@ The backend serves the public landing and policy pages used for launch and Chrom
 /
 /privacy
 /terms
-/refunds
 /support
 /security
 /robots.txt

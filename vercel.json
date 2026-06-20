@@ -13,10 +13,6 @@
       "destination": "/api/site"
     },
     {
-      "source": "/refunds",
-      "destination": "/api/site"
-    },
-    {
       "source": "/support",
       "destination": "/api/site"
     },
