@@ -424,6 +424,7 @@ function renderArticleIntelSidebar(state) {
     title.textContent = "No reliable free coverage found";
     body.innerHTML = `
       <p>Brevi found the original article, but could not find a separate open-web source that clearly covers the same story.</p>
+      <p class="ai-muted">No credit was used because Brevi did not generate a summary.</p>
       ${renderLockedArticle(state.lockedArticle, state.title)}
       <div class="ai-footer">
         <p>${escapeHtml(renderSourceStats(state.sourcesCheckedCount, 0))}</p>
