@@ -99,6 +99,22 @@ test("isValidOpenWebSource rejects same-article mirrors on other domains", async
   assert.deepEqual(result, { valid: false, reason: "duplicate" });
 });
 
+test("isValidOpenWebSource rejects previously shown final URLs", async () => {
+  const result = await isValidOpenWebSource({
+    url: "https://redirect.example/acme"
+  }, lockedArticle, {
+    excludedUrls: ["https://wire.example/business/acme-story"],
+    page: {
+      ok: true,
+      finalUrl: "https://wire.example/business/acme-story",
+      canonicalUrl: "https://wire.example/business/acme-story",
+      title: "Acme posts record profits after merger",
+      text: usableText
+    }
+  });
+  assert.deepEqual(result, { valid: false, reason: "previously_shown" });
+});
+
 test("isValidOpenWebSource rejects paywalled pages", async () => {
   const result = await isValidOpenWebSource({
     url: "https://wire.example/business/acme-story"

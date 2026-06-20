@@ -21,8 +21,14 @@ export function sendCors(response, config) {
 }
 
 export async function readJsonBody(request) {
+  const raw = await readRawBody(request);
+  if (!raw) return {};
+  return JSON.parse(raw);
+}
+
+export async function readRawBody(request) {
   if (request.body && typeof request.body === "object" && !isReadableStream(request.body)) {
-    return request.body;
+    return JSON.stringify(request.body);
   }
 
   let raw = "";
@@ -33,8 +39,7 @@ export async function readJsonBody(request) {
     }
   }
 
-  if (!raw) return {};
-  return JSON.parse(raw);
+  return raw;
 }
 
 export function getRequestUrl(request) {

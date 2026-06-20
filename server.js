@@ -1,6 +1,15 @@
 import { createServer } from "node:http";
 import { getConfig, loadLocalEnv } from "./api/_lib/env.js";
-import { handleHealth, handleResetUsage, handleSummarize, handleUsage } from "./api/_lib/handlers.js";
+import {
+  handleCreditCheckout,
+  handleCreditConfirm,
+  handleCredits,
+  handleHealth,
+  handleLemonWebhook,
+  handleResetUsage,
+  handleSummarize,
+  handleUsage
+} from "./api/_lib/handlers.js";
 import { sendCors, sendHtml, sendJson } from "./api/_lib/http.js";
 import { renderTestPaywallPage } from "./api/_lib/test-page.js";
 
@@ -34,6 +43,26 @@ const server = createServer(async (request, response) => {
 
     if (request.method === "GET" && url.pathname === "/api/usage") {
       await handleUsage(request, response);
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/credits") {
+      await handleCredits(request, response);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/credits/checkout") {
+      await handleCreditCheckout(request, response);
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/credits/confirm") {
+      await handleCreditConfirm(request, response);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/lemonsqueezy/webhook") {
+      await handleLemonWebhook(request, response);
       return;
     }
 

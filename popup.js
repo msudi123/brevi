@@ -6,6 +6,7 @@ const summarize = document.getElementById("summarize");
 const reset = document.getElementById("reset");
 const status = document.getElementById("status");
 const usage = document.getElementById("usage");
+const creditPacks = document.getElementById("creditPacks");
 const DEFAULT_BACKEND_URL = "https://brevi-psi.vercel.app";
 
 chrome.storage.local.get(["backendUrl", "accountEmail", "autoRunEnabled", "installId"], async (data) => {
@@ -63,12 +64,50 @@ async function checkUsage() {
   const email = settings.accountEmail || "";
 
   try {
-    const response = await fetch(`${url}/api/usage?installId=${encodeURIComponent(installId)}&email=${encodeURIComponent(email)}`);
+    const response = await fetch(`${url}/api/credits?installId=${encodeURIComponent(installId)}&email=${encodeURIComponent(email)}`);
     if (!response.ok) throw new Error("Backend unavailable");
     const data = await response.json();
-    usage.textContent = `Free summaries today: ${data.count} / ${data.limit}`;
+    const free = data.free || data;
+    usage.textContent = `Free summaries today: ${free.count} / ${free.limit}\nPaid credits: ${data.paid?.balance || 0}`;
+    renderCreditPacks(data.packs || [], { url, installId, email });
   } catch (error) {
     usage.textContent = "Backend status: offline";
+    creditPacks.innerHTML = "";
+  }
+}
+
+function renderCreditPacks(packs, settings) {
+  creditPacks.innerHTML = "";
+  for (const pack of packs.filter((item) => item.available)) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "pack-button";
+    button.textContent = `${pack.name}: ${pack.credits} credits`;
+    button.addEventListener("click", () => buyCredits(pack.id, settings));
+    creditPacks.appendChild(button);
+  }
+}
+
+async function buyCredits(pack, settings) {
+  status.textContent = "Opening checkout...";
+  try {
+    const response = await fetch(`${settings.url}/api/credits/checkout`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pack,
+        installId: settings.installId,
+        email: settings.email
+      })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.checkoutUrl) {
+      throw new Error(data.message || "Could not create checkout.");
+    }
+    await chrome.tabs.create({ url: data.checkoutUrl });
+    status.textContent = "";
+  } catch (error) {
+    status.textContent = error.message;
   }
 }
 

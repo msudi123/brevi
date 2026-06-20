@@ -10,7 +10,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             status: "limit",
             title: "Daily free limit reached",
             message: error.message || "You've used your free summaries today.",
-            upgradeUrl: error.upgradeUrl
+            buyCredits: error.buyCredits
           });
           return;
         }
@@ -43,7 +43,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "BREVI_MANUAL_SUMMARIZE") {
-    summarizeActiveTab().then(sendResponse).catch((error) => {
+    summarizeActiveTab({
+      excludedSourceUrls: Array.isArray(message.excludedSourceUrls) ? message.excludedSourceUrls : []
+    }).then(sendResponse).catch((error) => {
       sendResponse({ ok: false, message: error.message });
     });
     return true;
@@ -64,10 +66,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "BREVI_OPEN_POPUP_FOR_CREDITS") {
+    chrome.action.openPopup().catch(() => {});
+    sendResponse({ ok: true });
+    return true;
+  }
+
   return false;
 });
 
-async function handlePaywallDetected(article, tab) {
+async function handlePaywallDetected(article, tab, options = {}) {
   if (!tab?.id || !article?.url) return;
 
   await injectSidebar(tab.id, {
@@ -86,7 +94,7 @@ async function handlePaywallDetected(article, tab) {
     return;
   }
 
-  const result = await summarizeFreeCoverage(article, settings);
+  const result = await summarizeFreeCoverage(article, settings, options);
   await updateSidebar(tab.id, {
     status: result.status || "success",
     title: article.title || result.title || "Brevi summary",
@@ -106,11 +114,14 @@ async function handlePaywallDetected(article, tab) {
     keyMissingContext: result.keyMissingContext,
     readOriginalRecommendation: result.readOriginalRecommendation,
     warning: result.warning,
-    remaining: result.remaining
+    remaining: result.remaining,
+    paid: result.paid,
+    paidCreditUsed: result.paidCreditUsed,
+    paidCredits: result.paidCredits
   });
 }
 
-async function summarizeFreeCoverage(article, settings) {
+async function summarizeFreeCoverage(article, settings, options = {}) {
   const response = await fetch(`${settings.backendUrl}/api/summarize`, {
     method: "POST",
     headers: {
@@ -120,7 +131,8 @@ async function summarizeFreeCoverage(article, settings) {
       title: article.title || "Unknown article",
       url: article.url,
       installId: settings.installId,
-      email: settings.accountEmail
+      email: settings.accountEmail,
+      excludedSourceUrls: Array.isArray(options.excludedSourceUrls) ? options.excludedSourceUrls : []
     })
   });
 
@@ -129,7 +141,7 @@ async function summarizeFreeCoverage(article, settings) {
     if (response.status === 402 || response.status === 429) {
       throw Object.assign(new Error(data.message || "Daily free limit reached."), {
         articleIntelLimit: true,
-        upgradeUrl: data.upgradeUrl
+        buyCredits: data.buyCredits
       });
     }
     throw new Error(data.message || `Brevi API error (${response.status})`);
@@ -169,12 +181,15 @@ function createSidebarShell() {
   root.innerHTML = `
     <div class="ai-shell">
       <div class="ai-header">
-        <div>
-          <div class="ai-kicker">Brevi</div>
+        <div class="ai-heading">
+          <div class="ai-kicker">
+            <img class="ai-logo" src="${chrome.runtime.getURL("assets/brevi-logo-nobg.png")}" alt="">
+            <span>Brevi</span>
+          </div>
           <h2 id="brevi-title">Open-web summary</h2>
         </div>
         <span id="brevi-status" class="ai-status">Checking</span>
-        <button type="button" class="ai-close" aria-label="Close Brevi">&times;</button>
+        <button type="button" class="ai-close" aria-label="Close Brevi"></button>
       </div>
       <div id="brevi-body" class="ai-body"></div>
     </div>
@@ -366,6 +381,30 @@ function renderArticleIntelSidebar(state) {
     return `Sources checked: ${checkedCount} · Sources used: ${usedCount}`;
   }
 
+  function collectDisplayedSourceUrls(currentState) {
+    const urls = [
+      currentState.sourceUrl,
+      currentState.bestFreeMatch?.url,
+      ...(Array.isArray(currentState.sourcesUsed) ? currentState.sourcesUsed.map((source) => source.url) : []),
+      ...(Array.isArray(currentState.summaryBullets)
+        ? currentState.summaryBullets.flatMap((bullet) => Array.isArray(bullet.sources) ? bullet.sources.map((source) => source.url) : [])
+        : [])
+    ];
+
+    return [...new Set(urls.filter(Boolean))];
+  }
+
+  function requestSearchAgain(currentState) {
+    chrome.runtime.sendMessage({
+      type: "BREVI_MANUAL_SUMMARIZE",
+      excludedSourceUrls: collectDisplayedSourceUrls(currentState)
+    });
+  }
+
+  function requestBuyCredits() {
+    chrome.runtime.sendMessage({ type: "BREVI_OPEN_POPUP_FOR_CREDITS" });
+  }
+
   const root = document.getElementById("brevi-root");
   if (!root) return;
 
@@ -406,8 +445,9 @@ function renderArticleIntelSidebar(state) {
   if (state.status === "limit") {
     body.innerHTML = `
       <p>${escapeHtml(state.message)}</p>
-      <a class="ai-button" href="${escapeAttribute(state.upgradeUrl || "#")}" target="_blank" rel="noreferrer">Upgrade for unlimited summaries</a>
+      <button type="button" class="ai-button" id="brevi-buy-credits">Buy credits</button>
     `;
+    body.querySelector("#brevi-buy-credits")?.addEventListener("click", requestBuyCredits);
     return;
   }
 
@@ -423,7 +463,7 @@ function renderArticleIntelSidebar(state) {
     const originalUrl = state.lockedArticle?.url || "";
     title.textContent = "No reliable free coverage found";
     body.innerHTML = `
-      <p>Brevi found the original article, but could not find a separate open-web source that clearly covers the same story.</p>
+      <p>${escapeHtml(state.warning && state.warning !== "No reliable free coverage found." ? state.warning : "Brevi found the original article, but could not find a separate open-web source that clearly covers the same story.")}</p>
       <p class="ai-muted">No credit was used because Brevi did not generate a summary.</p>
       ${renderLockedArticle(state.lockedArticle, state.title)}
       <div class="ai-footer">
@@ -431,12 +471,12 @@ function renderArticleIntelSidebar(state) {
         <p>${Number.isFinite(state.remaining) ? `${state.remaining} free summaries left today` : ""}</p>
         <div class="ai-actions">
           ${originalUrl ? `<a class="ai-button" href="${escapeAttribute(originalUrl)}" target="_blank" rel="noreferrer">Open original article</a>` : ""}
-          <button type="button" class="ai-button ai-secondary" id="brevi-check-again">Try another search</button>
+          <button type="button" class="ai-button ai-secondary" id="brevi-check-again">Search again</button>
         </div>
       </div>
     `;
     body.querySelector("#brevi-check-again")?.addEventListener("click", () => {
-      chrome.runtime.sendMessage({ type: "BREVI_MANUAL_SUMMARIZE" });
+      requestSearchAgain(state);
     });
     return;
   }
@@ -461,6 +501,9 @@ function renderArticleIntelSidebar(state) {
     state.bestFreeMatch,
     state.sourceUrl
   );
+  const creditLine = state.paidCreditUsed
+    ? `<p>1 paid credit used · ${Number.isFinite(state.paidCredits) ? `${state.paidCredits} paid credits left` : "Paid credits updated"}</p>`
+    : `<p>${Number.isFinite(state.remaining) ? `${state.remaining} free summaries left today` : ""}</p>`;
 
   body.innerHTML = `
     <div class="ai-ratings">
@@ -480,20 +523,19 @@ function renderArticleIntelSidebar(state) {
     ${missingContext}
     <div class="ai-footer">
       <p>${escapeHtml(sourceStats)}</p>
-      <p>${Number.isFinite(state.remaining) ? `${state.remaining} free summaries left today` : ""}</p>
+      ${creditLine}
       <div class="ai-actions">
-        <button type="button" class="ai-button ai-secondary" id="brevi-check-again">Check another source</button>
-        <a class="ai-button" href="${escapeAttribute(state.upgradeUrl || "https://whop.com")}" target="_blank" rel="noreferrer">Upgrade</a>
+        <button type="button" class="ai-button ai-secondary" id="brevi-check-again">Search again</button>
       </div>
     </div>
   `;
 
   body.querySelector("#brevi-check-again")?.addEventListener("click", () => {
-    chrome.runtime.sendMessage({ type: "BREVI_MANUAL_SUMMARIZE" });
+    requestSearchAgain(state);
   });
 }
 
-async function summarizeActiveTab() {
+async function summarizeActiveTab(options = {}) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || !tab.url) {
     throw new Error("No active tab found.");
@@ -504,7 +546,7 @@ async function summarizeActiveTab() {
     func: extractArticleFromPage
   });
 
-  await handlePaywallDetected(result.result || { title: tab.title, url: tab.url }, tab);
+  await handlePaywallDetected(result.result || { title: tab.title, url: tab.url }, tab, options);
   return { ok: true };
 }
 

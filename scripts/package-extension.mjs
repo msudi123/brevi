@@ -12,7 +12,8 @@ const files = [
   "sidebar.css",
   "popup.html",
   "popup.css",
-  "popup.js"
+  "popup.js",
+  "assets"
 ];
 
 if (existsSync(output)) {

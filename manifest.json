@@ -37,7 +37,8 @@
     {
       "resources": [
         "sidebar.html",
-        "sidebar.css"
+        "sidebar.css",
+        "assets/brevi-logo-nobg.png"
       ],
       "matches": [
         "<all_urls>"

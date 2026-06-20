@@ -16,14 +16,20 @@ const PAYWALL_PATTERNS = [
   /premium content/i
 ];
 
-export async function summarizeWithOpenAI({ title, articleUrl, config }) {
+export async function summarizeWithOpenAI({ title, articleUrl, excludedSourceUrls = [], config }) {
   const lockedArticle = buildLockedArticle(title, articleUrl);
-  const candidates = await discoverOpenWebCandidates({ lockedArticle, config });
-  const validation = await validateOpenWebSources(candidates, lockedArticle);
+  const excludedUrls = normalizeExcludedUrls(excludedSourceUrls);
+  const candidates = await discoverOpenWebCandidates({ lockedArticle, excludedUrls, config });
+  const validation = await validateOpenWebSources(candidates, lockedArticle, { excludedUrls });
 
   if (validation.validSources.length === 0) {
     const samePublisherResults = validation.excludedSources.filter((source) => source.reason === "same_domain").length;
-    const warning = samePublisherResults > 0
+    const previouslyShownResults = validation.excludedSources.filter((source) => source.reason === "previously_shown").length;
+    const warning = previouslyShownResults > 0
+      ? "Brevi searched again, but the only reliable source found was the one already shown."
+      : excludedUrls.length > 0
+      ? "Brevi searched again, but could not find a different reliable source for this story."
+      : samePublisherResults > 0
       ? "Brevi could not find separate open-web coverage of this story."
       : "No reliable free coverage found.";
     return noReliableCoverageResult({
@@ -49,7 +55,16 @@ export async function summarizeWithOpenAI({ title, articleUrl, config }) {
   });
 }
 
-async function discoverOpenWebCandidates({ lockedArticle, config }) {
+async function discoverOpenWebCandidates({ lockedArticle, excludedUrls, config }) {
+  const excludedUrlLines = excludedUrls.length
+    ? [
+      "",
+      "Already shown source URLs to exclude:",
+      ...excludedUrls.map((url) => `- ${url}`),
+      "",
+      "Find a different source. If no different reliable source exists, return candidates as an empty array."
+    ]
+    : [];
   const prompt = [
     "You are Brevi's source discovery worker.",
     "",
@@ -58,6 +73,7 @@ async function discoverOpenWebCandidates({ lockedArticle, config }) {
     `Locked article title: ${lockedArticle.title}`,
     `Locked article domain: ${lockedArticle.domain}`,
     `Locked article URL: ${lockedArticle.url}`,
+    ...excludedUrlLines,
     "",
     "Use web search to find separate free/open-web articles that clearly cover the same story.",
     "Prefer different publishers/domains. The original publisher/domain must not be treated as a valid source.",
@@ -78,6 +94,7 @@ async function discoverOpenWebCandidates({ lockedArticle, config }) {
     "",
     "Rules:",
     "- Do not include the locked article URL.",
+    "- Do not include any already shown source URL.",
     "- Do not include internal search IDs.",
     "- Do not include a result with a missing URL.",
     "- Include at most 8 candidates."
@@ -345,12 +362,30 @@ function normalizeCandidateSources(value) {
     .filter(Boolean);
 }
 
-async function validateOpenWebSources(candidates, lockedArticle) {
+function normalizeExcludedUrls(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .map((url) => normalizeUrl(url))
+    .filter(Boolean))]
+    .slice(0, 12);
+}
+
+async function validateOpenWebSources(candidates, lockedArticle, { excludedUrls = [] } = {}) {
   const excludedSources = [];
   const validSources = [];
+  const excludedSet = new Set(excludedUrls.map(normalizeUrl).filter(Boolean));
 
   for (const candidate of candidates) {
-    const validation = await isValidOpenWebSource(candidate, lockedArticle);
+    const candidateUrl = normalizeUrl(candidate.url);
+    if (excludedSet.has(candidateUrl)) {
+      excludedSources.push({
+        url: candidate.url || "",
+        reason: "previously_shown"
+      });
+      continue;
+    }
+
+    const validation = await isValidOpenWebSource(candidate, lockedArticle, { excludedUrls: [...excludedSet] });
     if (!validation.valid) {
       excludedSources.push({
         url: candidate.url || "",
@@ -369,6 +404,9 @@ async function validateOpenWebSources(candidates, lockedArticle) {
       text: cleanText(validation.text, 6000)
     });
 
+    excludedSet.add(normalizeUrl(candidate.url));
+    excludedSet.add(normalizeUrl(validation.finalUrl));
+
     if (validSources.length >= MAX_VALIDATED_SOURCES) break;
   }
 
@@ -384,12 +422,14 @@ async function validateOpenWebSources(candidates, lockedArticle) {
 export async function isValidOpenWebSource(source, lockedArticle, options = {}) {
   const url = String(source?.url || "").trim();
   if (!url) return invalid("no_usable_content");
+  const excludedUrls = new Set((options.excludedUrls || []).map(normalizeUrl).filter(Boolean));
 
   const lockedUrl = lockedArticle?.url || "";
   const sourceNormalized = normalizeUrl(url);
   const lockedNormalized = normalizeUrl(lockedUrl);
   if (!sourceNormalized || !lockedNormalized) return invalid("no_usable_content");
   if (sourceNormalized === lockedNormalized) return invalid("same_as_locked_article");
+  if (excludedUrls.has(sourceNormalized)) return invalid("previously_shown");
 
   const sourceDomain = domainFromUrl(url);
   const lockedDomain = domainFromUrl(lockedUrl || lockedArticle?.domain || "");
@@ -405,10 +445,12 @@ export async function isValidOpenWebSource(source, lockedArticle, options = {}) 
 
   const finalUrl = page.finalUrl || url;
   if (normalizeUrl(finalUrl) === lockedNormalized) return invalid("same_as_locked_article");
+  if (excludedUrls.has(normalizeUrl(finalUrl))) return invalid("previously_shown");
   if (domainFromUrl(finalUrl) === lockedDomain) return invalid("same_domain");
 
   const canonicalUrl = page.canonicalUrl || "";
   if (canonicalUrl && normalizeUrl(canonicalUrl) === lockedNormalized) return invalid("duplicate");
+  if (canonicalUrl && excludedUrls.has(normalizeUrl(canonicalUrl))) return invalid("previously_shown");
   if (canonicalUrl && domainFromUrl(canonicalUrl) === lockedDomain) return invalid("same_domain");
 
   const pageTitle = page.title || source.title || "";
@@ -558,6 +600,7 @@ function normalizeExclusionReason(value) {
     "same_domain",
     "paywalled",
     "duplicate",
+    "previously_shown",
     "no_usable_content"
   ].includes(reason) ? reason : "no_usable_content";
 }
