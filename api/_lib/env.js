@@ -36,6 +36,7 @@ export function getConfig() {
     openaiEndpoint: "https://api.openai.com/v1/responses",
     supabaseUrl: trimTrailingSlash(process.env.SUPABASE_URL || ""),
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || "",
     lemonSqueezyApiKey: process.env.LEMONSQUEEZY_API_KEY || "",
     lemonSqueezyStoreId: process.env.LEMONSQUEEZY_STORE_ID || "",
     lemonSqueezyWebhookSecret: process.env.LEMONSQUEEZY_WEBHOOK_SECRET || "",
@@ -52,6 +53,10 @@ export function getConfig() {
 
 export function hasSupabaseConfig(config = getConfig()) {
   return Boolean(config.supabaseUrl && config.supabaseServiceRoleKey);
+}
+
+export function hasSupabaseAuthConfig(config = getConfig()) {
+  return Boolean(config.supabaseUrl && config.supabaseAnonKey);
 }
 
 function trimTrailingSlash(value) {

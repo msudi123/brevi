@@ -44,7 +44,7 @@ Deno.serve(async (request) => {
 
   const args = rpcName === "grant_purchased_credits"
     ? {
-      p_user_key: `install:${normalizeUserId(parsed.installId)}`,
+      p_user_key: parsed.authUserId ? `auth:${normalizeUserId(parsed.authUserId)}` : `install:${normalizeUserId(parsed.installId)}`,
       p_install_id: parsed.installId,
       p_email: parsed.email || null,
       p_lemon_order_id: parsed.orderId,
@@ -54,7 +54,7 @@ Deno.serve(async (request) => {
       p_credits: parsed.credits
     }
     : {
-      p_user_key: `install:${normalizeUserId(parsed.installId)}`,
+      p_user_key: parsed.authUserId ? `auth:${normalizeUserId(parsed.authUserId)}` : `install:${normalizeUserId(parsed.installId)}`,
       p_lemon_order_id: parsed.orderId,
       p_lemon_event_id: parsed.eventId || null,
       p_credits: parsed.credits
@@ -110,6 +110,7 @@ function parseEvent(event: any) {
     pack,
     credits: Number(custom.credits || pack?.credits || 0),
     installId: String(custom.install_id || "").trim(),
+    authUserId: String(custom.auth_user_id || custom.authUserId || "").trim(),
     email: String(attributes.user_email || attributes.email || custom.email || "").trim()
   };
 }

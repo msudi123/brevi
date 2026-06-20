@@ -26,3 +26,18 @@ test("getConfig normalizes Vercel hostnames into public HTTPS URLs", () => {
     }
   }
 });
+
+test("getConfig includes the Supabase anon key when set", () => {
+  const previousAnonKey = process.env.SUPABASE_ANON_KEY;
+
+  try {
+    process.env.SUPABASE_ANON_KEY = "anon-key";
+    assert.equal(getConfig().supabaseAnonKey, "anon-key");
+  } finally {
+    if (previousAnonKey === undefined) {
+      delete process.env.SUPABASE_ANON_KEY;
+    } else {
+      process.env.SUPABASE_ANON_KEY = previousAnonKey;
+    }
+  }
+});

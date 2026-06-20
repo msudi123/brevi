@@ -1,7 +1,8 @@
-import { getConfig, hasSupabaseConfig } from "./env.js";
+import { getConfig, hasSupabaseConfig, hasSupabaseAuthConfig } from "./env.js";
 import { availableCreditPacks, createLemonCheckout, packForId, parseLemonOrderEvent, verifyLemonSignature } from "./credits.js";
 import { readJsonBody, readRawBody, sendHtml, sendJson } from "./http.js";
 import { summarizeWithOpenAI } from "./openai.js";
+import { resolveSupabaseAuth } from "./auth.js";
 import {
   assertRateLimit,
   getCreditAccount,
@@ -23,6 +24,9 @@ export async function handleHealth(request, response) {
     model: config.openaiModel,
     hasOpenAIKey: Boolean(config.openaiApiKey),
     hasSupabase: hasSupabaseConfig(config),
+    hasSupabaseAuth: hasSupabaseAuthConfig(config),
+    supabaseUrl: config.supabaseUrl || "",
+    supabaseAnonKey: config.supabaseAnonKey || "",
     whopReady: false
   }, config);
 }
@@ -33,9 +37,10 @@ export async function handleUsage(request, response) {
   const installId = cleanText(url.searchParams.get("installId") || url.searchParams.get("userId") || "");
   const email = cleanText(url.searchParams.get("email") || "");
   const ipAddress = getClientIp(request);
+  const auth = await resolveSupabaseAuth(request, config);
 
   try {
-    const usage = await getUsage({ installId, email, ipAddress, config });
+    const usage = await getUsage({ authUserId: auth.userId, installId, email, ipAddress, config });
     sendJson(response, 200, usage, config);
   } catch (error) {
     sendJson(response, 500, {
@@ -51,6 +56,7 @@ export async function handleCredits(request, response) {
   const installId = cleanText(url.searchParams.get("installId") || url.searchParams.get("userId") || "");
   const email = cleanText(url.searchParams.get("email") || "");
   const ipAddress = getClientIp(request);
+  const auth = await resolveSupabaseAuth(request, config);
 
   try {
     await assertRateLimit({
@@ -61,8 +67,8 @@ export async function handleCredits(request, response) {
       config
     });
     const [usage, creditAccount] = await Promise.all([
-      getUsage({ installId, email, ipAddress, config }),
-      getCreditAccount({ installId, email, config })
+      getUsage({ authUserId: auth.userId, installId, email, ipAddress, config }),
+      getCreditAccount({ authUserId: auth.userId, installId, email, config })
     ]);
     sendJson(response, 200, {
       ok: true,
@@ -83,11 +89,12 @@ export async function handleCredits(request, response) {
 export async function handleCreditCheckout(request, response) {
   const config = getConfig();
   const ipAddress = getClientIp(request);
+  const auth = await resolveSupabaseAuth(request, config);
 
   try {
     const body = await readJsonBody(request);
     const installId = cleanText(body.installId || body.userId || "");
-    const email = cleanText(body.email || "");
+    const email = cleanText(body.email || auth.email || "");
     const pack = packForId(body.pack);
     if (!installId) {
       sendJson(response, 400, { ok: false, message: "Install ID is required." }, config);
@@ -105,7 +112,7 @@ export async function handleCreditCheckout(request, response) {
       windowSeconds: 300,
       config
     });
-    const checkout = await createLemonCheckout({ pack, installId, email, config });
+    const checkout = await createLemonCheckout({ pack, authUserId: auth.userId, installId, email, config });
     sendJson(response, 200, {
       ok: true,
       checkoutUrl: checkout.checkoutUrl,
@@ -170,6 +177,7 @@ export async function handleLemonWebhook(request, response) {
 
     if (parsed.eventName === "order_created") {
       const result = await grantPurchasedCredits({
+        authUserId: parsed.authUserId,
         installId: parsed.installId,
         email: parsed.email,
         lemonOrderId: parsed.orderId,
@@ -185,6 +193,7 @@ export async function handleLemonWebhook(request, response) {
 
     if (parsed.eventName === "order_refunded") {
       const result = await refundPurchasedCredits({
+        authUserId: parsed.authUserId,
         installId: parsed.installId,
         email: parsed.email,
         lemonOrderId: parsed.orderId,
@@ -218,6 +227,7 @@ export async function handleResetUsage(request, response) {
   const body = await readJsonBody(request);
   const ipAddress = getClientIp(request);
   await resetUsage({
+    authUserId: (await resolveSupabaseAuth(request, config)).userId,
     installId: cleanText(body.installId || body.userId || ""),
     email: cleanText(body.email || ""),
     ipAddress,
@@ -243,6 +253,7 @@ export async function handleSummarize(request, response) {
   const email = cleanText(body.email || "");
   const excludedSourceUrls = normalizeExcludedSourceUrls(body.excludedSourceUrls || body.excludeUrls || body.excluded_sources);
   const ipAddress = getClientIp(request);
+  const auth = await resolveSupabaseAuth(request, config);
 
   if (!articleUrl) {
     sendJson(response, 400, {
@@ -260,12 +271,13 @@ export async function handleSummarize(request, response) {
       windowSeconds: config.rateLimitWindowSeconds,
       config
     });
-    const usage = await getUsage({ installId, email, ipAddress, config });
+    const usage = await getUsage({ authUserId: auth.userId, installId, email, ipAddress, config });
     const paidAccount = usage.count >= config.freeDailyLimit
-      ? await getCreditAccount({ installId, email, config })
+      ? await getCreditAccount({ authUserId: auth.userId, installId, email, config })
       : { balance: 0 };
     if (usage.count >= config.freeDailyLimit && paidAccount.balance <= 0) {
       await safeRecordSummaryEvent({
+        authUserId: auth.userId,
         installId,
         email,
         articleUrl,
@@ -288,9 +300,9 @@ export async function handleSummarize(request, response) {
     const shouldCountUsage = result.status === "success" && (result.matchConfidence === "high" || result.matchConfidence === "medium");
     if (shouldCountUsage) {
       if (usage.count < config.freeDailyLimit) {
-        await incrementUsage({ installId, email, ipAddress, config });
+        await incrementUsage({ authUserId: auth.userId, installId, email, ipAddress, config });
       } else {
-        const spend = await spendPaidCredit({ installId, email, articleUrl, config });
+        const spend = await spendPaidCredit({ authUserId: auth.userId, installId, email, articleUrl, config });
         if (!spend?.spent) {
           const error = new Error("No paid credits are available.");
           error.statusCode = 402;
@@ -299,6 +311,7 @@ export async function handleSummarize(request, response) {
       }
     }
     await safeRecordSummaryEvent({
+      authUserId: auth.userId,
       installId,
       email,
       articleUrl,
@@ -309,8 +322,8 @@ export async function handleSummarize(request, response) {
       config
     });
 
-    const nextUsage = await getUsage({ installId, email, ipAddress, config });
-    const nextPaidAccount = await getCreditAccount({ installId, email, config });
+    const nextUsage = await getUsage({ authUserId: auth.userId, installId, email, ipAddress, config });
+    const nextPaidAccount = await getCreditAccount({ authUserId: auth.userId, installId, email, config });
     const remaining = Math.max(config.freeDailyLimit - nextUsage.count, 0);
     const shouldOfferCredits = remaining <= 0 && nextPaidAccount.balance <= 0;
 
@@ -342,6 +355,7 @@ export async function handleSummarize(request, response) {
     }, config);
   } catch (error) {
     await safeRecordSummaryEvent({
+      authUserId: auth.userId,
       installId,
       email,
       articleUrl,

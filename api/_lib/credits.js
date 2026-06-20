@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { userKeyFor } from "./supabase.js";
+import { userKeyForIdentity } from "./supabase.js";
 
 export const CREDIT_PACKS = [
   { id: "starter", name: "Starter", credits: 50, configKey: "lemonSqueezyVariantStarter" },
@@ -25,7 +25,7 @@ export function packForVariantId(variantId, config) {
   return CREDIT_PACKS.find((pack) => String(config[pack.configKey] || "") === normalized) || null;
 }
 
-export async function createLemonCheckout({ pack, installId, email, config }) {
+export async function createLemonCheckout({ pack, authUserId, installId, email, config }) {
   if (!config.lemonSqueezyApiKey || !config.lemonSqueezyStoreId) {
     throw new Error("Lemon Squeezy is not configured.");
   }
@@ -36,7 +36,7 @@ export async function createLemonCheckout({ pack, installId, email, config }) {
   }
 
   const appUrl = config.publicAppUrl || "https://brevi-psi.vercel.app";
-  const userKey = userKeyFor(installId);
+  const userKey = userKeyForIdentity({ authUserId, installId });
   const numericVariantId = Number(variantId);
   const enabledVariantId = Number.isFinite(numericVariantId) ? numericVariantId : variantId;
   const payload = {
@@ -46,6 +46,7 @@ export async function createLemonCheckout({ pack, installId, email, config }) {
         checkout_data: {
           email: email || undefined,
           custom: {
+            auth_user_id: authUserId || "",
             install_id: installId,
             user_key: userKey,
             email: email || "",
@@ -121,6 +122,7 @@ export function parseLemonOrderEvent(event, config) {
   const variantId = String(attributes.first_order_item?.variant_id || attributes.variant_id || custom.variant_id || "");
   const pack = packForVariantId(variantId, config) || packForId(custom.pack);
   const credits = Number(custom.credits || pack?.credits || 0);
+  const authUserId = String(custom.auth_user_id || custom.authUserId || "").trim();
 
   return {
     eventId: String(meta.event_id || event?.id || ""),
@@ -129,6 +131,7 @@ export function parseLemonOrderEvent(event, config) {
     variantId,
     pack,
     credits,
+    authUserId,
     installId: String(custom.install_id || "").trim(),
     email: String(attributes.user_email || attributes.email || custom.email || "").trim()
   };

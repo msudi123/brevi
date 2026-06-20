@@ -17,7 +17,7 @@ export function sendHtml(response, statusCode, html, config) {
 export function sendCors(response, config) {
   response.setHeader("access-control-allow-origin", config?.extensionOrigin || "*");
   response.setHeader("access-control-allow-methods", "GET,POST,OPTIONS");
-  response.setHeader("access-control-allow-headers", "content-type");
+  response.setHeader("access-control-allow-headers", "authorization, content-type, x-client-info, apikey, x-signature, x-brevi-auth-token");
 }
 
 export async function readJsonBody(request) {

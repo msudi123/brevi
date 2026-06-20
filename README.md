@@ -11,8 +11,11 @@ Brevi is a Manifest V3 Chrome extension plus a Vercel backend. It detects paywal
 OPENAI_API_KEY=sk-proj-...
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_ANON_KEY=...
 FREE_DAILY_LIMIT=5
 ```
+
+Supabase Auth in the popup uses the public anon key plus email/password sign-in.
 
 3. Create the Supabase tables by running `supabase/schema.sql` in the Supabase SQL editor.
 4. Start the backend:
@@ -44,6 +47,7 @@ OPENAI_MODEL=gpt-4.1-mini
 FREE_DAILY_LIMIT=5
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_ANON_KEY=
 PUBLIC_EXTENSION_ORIGIN=*
 WHOP_API_KEY=
 WHOP_CLIENT_ID=

@@ -55,7 +55,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     getSettings()
       .then((settings) => fetch(`${settings.backendUrl}/api/usage/reset`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(settings.authSession?.access_token ? { authorization: `Bearer ${settings.authSession.access_token}` } : {})
+        },
         body: JSON.stringify({
           installId: settings.installId,
           email: settings.accountEmail
@@ -124,14 +127,15 @@ async function handlePaywallDetected(article, tab, options = {}) {
 
 async function summarizeFreeCoverage(article, settings, options = {}) {
   const response = await fetch(`${settings.backendUrl}/api/summarize`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({
-      title: article.title || "Unknown article",
-      url: article.url,
-      installId: settings.installId,
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(settings.authSession?.access_token ? { authorization: `Bearer ${settings.authSession.access_token}` } : {})
+      },
+      body: JSON.stringify({
+        title: article.title || "Unknown article",
+        url: article.url,
+        installId: settings.installId,
       email: settings.accountEmail,
       excludedSourceUrls: Array.isArray(options.excludedSourceUrls) ? options.excludedSourceUrls : []
     })
@@ -681,7 +685,7 @@ function extractArticleFromPage() {
 }
 
 async function getSettings() {
-  const data = await chrome.storage.local.get(["backendUrl", "accountEmail", "installId"]);
+  const data = await chrome.storage.local.get(["backendUrl", "accountEmail", "installId", "supabaseSession"]);
   let installId = data.installId;
   if (!installId) {
     installId = crypto.randomUUID();
@@ -691,8 +695,15 @@ async function getSettings() {
   return {
     backendUrl: normalizeBackendUrl(data.backendUrl || DEFAULT_BACKEND_URL),
     accountEmail: data.accountEmail || "",
-    installId
+    installId,
+    authSession: normalizeSupabaseSession(data.supabaseSession)
   };
+}
+
+function normalizeSupabaseSession(session) {
+  if (!session || typeof session !== "object") return null;
+  if (!session.access_token || !session.refresh_token) return null;
+  return session;
 }
 
 function normalizeBackendUrl(value) {

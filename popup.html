@@ -7,33 +7,76 @@
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
-    <h1>Brevi</h1>
-    <p>Open-web story briefs in seconds.</p>
+    <main class="app">
+      <header class="brand">
+        <img src="assets/brevi-logo-nobg.png" alt="">
+        <div class="brand-copy">
+          <h1>Brevi</h1>
+          <p>Open-web story briefs in seconds.</p>
+        </div>
+      </header>
 
-    <label for="backendUrl">Backend URL</label>
-    <input id="backendUrl" type="url" autocomplete="off" placeholder="https://brevi-psi.vercel.app">
+      <section class="card">
+        <label for="backendUrl">Backend URL</label>
+        <input id="backendUrl" type="url" autocomplete="off" placeholder="https://brevi-psi.vercel.app">
+      </section>
 
-    <label for="accountEmail">Account email</label>
-    <input id="accountEmail" type="email" autocomplete="email" placeholder="you@example.com">
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Supabase auth</h2>
+            <p>Sign in to keep credits and usage tied to your account.</p>
+          </div>
+          <span id="authState" class="badge badge-neutral">Signed out</span>
+        </div>
 
-    <label class="toggle-row" for="autoRunEnabled">
-      <span>
-        <strong>Auto-run on paywalls</strong>
-        <small>Turn this off to use manual summaries only.</small>
-      </span>
-      <input id="autoRunEnabled" type="checkbox">
-    </label>
+        <label for="authEmail">Email</label>
+        <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com">
 
-    <button id="save" class="primary" type="button">Save settings</button>
-    <button id="summarize" class="secondary" type="button">Summarize current page</button>
+        <label for="authPassword">Password</label>
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password">
 
-    <div class="panel">
-      <p id="usage">Backend status: not checked</p>
-      <div id="creditPacks" class="credit-packs" aria-label="Credit packs"></div>
-      <button id="reset" class="secondary" type="button">Reset usage</button>
-    </div>
+        <div class="button-row">
+          <button id="signIn" class="primary" type="button">Sign in</button>
+          <button id="signUp" class="secondary" type="button">Create account</button>
+        </div>
 
-    <div id="status" class="status" role="status"></div>
+        <div class="button-row">
+          <button id="signOut" class="secondary hidden" type="button">Sign out</button>
+          <div id="authUser" class="meta"></div>
+        </div>
+
+        <div id="authStatus" class="status" role="status"></div>
+      </section>
+
+      <section class="card">
+        <label class="toggle-row" for="autoRunEnabled">
+          <span>
+            <strong>Auto-run on paywalls</strong>
+            <small>Turn this off to use manual summaries only.</small>
+          </span>
+          <input id="autoRunEnabled" type="checkbox">
+        </label>
+
+        <button id="save" class="primary" type="button">Save settings</button>
+        <button id="summarize" class="secondary" type="button">Summarize current page</button>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Usage</h2>
+            <p>Free summaries and credits for this browser.</p>
+          </div>
+          <span id="creditsCompact" class="badge badge-mint">-- credits</span>
+        </div>
+        <p id="usage">Backend status: not checked</p>
+        <div id="creditPacks" class="credit-packs" aria-label="Credit packs"></div>
+        <button id="reset" class="secondary" type="button">Reset usage</button>
+      </section>
+
+      <div id="status" class="status status-bottom" role="status"></div>
+    </main>
 
     <script src="popup.js"></script>
   </body>
