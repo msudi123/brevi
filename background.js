@@ -182,14 +182,19 @@ function createSidebarShell() {
   root.innerHTML = `
     <div class="ai-shell">
       <div class="ai-header">
-        <div class="ai-heading">
-          <div class="ai-kicker">
+        <div class="ai-brand">
+          <div class="ai-logo-wrap">
             <img class="ai-logo" src="${chrome.runtime.getURL("assets/brevi-logo-nobg.png")}" alt="">
-            <span>Brevi</span>
           </div>
-          <h2 id="brevi-title">Open-web summary</h2>
+          <div class="ai-heading">
+            <div class="ai-product">Brevi</div>
+            <h2 id="brevi-title">Open-web story brief</h2>
+          </div>
         </div>
-        <span id="brevi-status" class="ai-status">Checking</span>
+        <div class="ai-header-side">
+          <span id="brevi-header-meta" class="ai-header-meta">Checking</span>
+          <span id="brevi-status" class="ai-status">Checking</span>
+        </div>
         <button type="button" class="ai-close" aria-label="Close Brevi"></button>
       </div>
       <div id="brevi-body" class="ai-body"></div>
@@ -200,6 +205,9 @@ function createSidebarShell() {
 }
 
 function renderArticleIntelSidebar(state) {
+  const PACK_TOTALS = [50, 150, 400];
+  const TRUST_NOTE = "Based on separate open-web sources. Brevi may miss details unique to the original article.";
+
   function markdownBulletsToHtml(markdown) {
     const bullets = Array.isArray(markdown)
       ? markdown
@@ -209,10 +217,10 @@ function renderArticleIntelSidebar(state) {
 
     if (bullets.length <= 1) {
       const bullet = bullets[0];
-      return `<p>${formatInlineMarkdown(typeof bullet === "string" ? bullet : bullet?.text || markdown)}${renderSourceChips(bullet)}</p>`;
+      return `<p class="ai-summary-line">${formatInlineMarkdown(typeof bullet === "string" ? bullet : bullet?.text || markdown)}${renderSourceChips(bullet)}</p>`;
     }
 
-    return `<ul>${bullets.map((bullet) => `<li>${formatInlineMarkdown(typeof bullet === "string" ? bullet : bullet.text)}${renderSourceChips(bullet)}</li>`).join("")}</ul>`;
+    return `<ul>${bullets.map((bullet) => `<li><span>${formatInlineMarkdown(typeof bullet === "string" ? bullet : bullet.text)}</span>${renderSourceChips(bullet)}</li>`).join("")}</ul>`;
   }
 
   function escapeHtml(value) {
@@ -239,6 +247,13 @@ function renderArticleIntelSidebar(state) {
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 
+  function ratingClass(value) {
+    const normalized = String(value || "low").toLowerCase();
+    if (normalized === "high") return "high";
+    if (normalized === "medium") return "medium";
+    return "low";
+  }
+
   function formatRecommendationLabel(value) {
     const normalized = String(value || "maybe").toLowerCase();
     if (normalized === "yes") return "Yes";
@@ -246,68 +261,115 @@ function renderArticleIntelSidebar(state) {
     return "Maybe";
   }
 
+  function publisherName(source) {
+    const explicit = String(source?.publisher || "").trim();
+    if (explicit) return explicit;
+    try {
+      const host = new URL(source?.url || "").hostname.replace(/^www\./, "");
+      return host || "Source";
+    } catch (error) {
+      return "Source";
+    }
+  }
+
+  function card(title, content, className = "") {
+    return `
+      <section class="ai-card ${escapeAttribute(className)}">
+        ${title ? `<div class="ai-card-title">${escapeHtml(title)}</div>` : ""}
+        ${content}
+      </section>
+    `;
+  }
+
+  function renderHeaderMeta(currentState) {
+    const paidCredits = Number(currentState.paidCredits || 0);
+    if (paidCredits > 0) return `${paidCredits} credits`;
+    if (Number.isFinite(currentState.remaining)) return `${currentState.remaining} free left`;
+    if (currentState.status === "loading") return "Researching";
+    if (currentState.status === "limit") return "0 free left";
+    return "Ready";
+  }
+
   function renderSourceChips(bullet) {
     const sources = Array.isArray(bullet?.sources) ? bullet.sources : [];
     if (sources.length === 0) return "";
 
-    return ` <span class="ai-chip-row">${sources.map((source) => `
-      <a class="ai-source-chip" href="${escapeAttribute(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.publisher || source.url)}</a>
+    return `<span class="ai-chip-row">${sources.map((source) => `
+      <a class="ai-source-chip" href="${escapeAttribute(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(publisherName(source))}</a>
     `).join("")}</span>`;
   }
 
-  function renderSourcesUsed(sources, bestMatchUrl) {
+  function renderStoryStatusCard(currentState) {
+    const usedCount = Array.isArray(currentState.sourcesUsed) ? currentState.sourcesUsed.length : 0;
+    const badges = [
+      { label: "Match", value: formatRating(currentState.matchConfidence), tone: ratingClass(currentState.matchConfidence) },
+      { label: "Source quality", value: formatRating(currentState.sourceQuality), tone: ratingClass(currentState.sourceQuality) },
+      { label: "Sources used", value: String(usedCount || currentState.sourcesCheckedCount || 0), tone: usedCount > 0 ? "high" : "low" },
+      { label: "Original excluded", value: "Yes", tone: "neutral" }
+    ];
+
+    return card("Story status", `
+      <div class="ai-badge-grid">
+        ${badges.map((badge) => `
+          <span class="ai-pill ai-pill-${escapeAttribute(badge.tone)}">
+            <em>${escapeHtml(badge.label)}</em>
+            <strong>${escapeHtml(badge.value)}</strong>
+          </span>
+        `).join("")}
+      </div>
+    `, "ai-status-card");
+  }
+
+  function renderKeyPointsCard(summaryHtml) {
+    return card("Key points", `<div class="ai-summary">${summaryHtml}</div>`, "ai-keypoints-card");
+  }
+
+  function renderSourcesCard(sources, bestMatchUrl) {
     if (!Array.isArray(sources) || sources.length === 0) return "";
 
     const items = sources.map((source) => {
       const best = source.url === bestMatchUrl ? `<span class="ai-best">Best match</span>` : "";
-      const meta = [source.publisher, source.date].filter(Boolean).map(escapeHtml).join(" · ");
+      const meta = [source.date].filter(Boolean).map(escapeHtml).join(" · ");
       return `
-        <li>
-          <div class="ai-source-title">${escapeHtml(source.publisher || "Source")}</div>
-          <a href="${escapeAttribute(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.title || source.url)}</a>
-          ${best}
-          ${meta ? `<span>${meta}</span>` : ""}
-          ${source.reasonUsed ? `<p>${escapeHtml(source.reasonUsed)}</p>` : ""}
+        <article class="ai-source-item">
+          <div class="ai-source-head">
+            <div>
+              <div class="ai-source-title">${escapeHtml(publisherName(source))}</div>
+              <a class="ai-source-link" href="${escapeAttribute(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.title || "Open-web source")}</a>
+            </div>
+            ${best}
+          </div>
+          ${meta ? `<p class="ai-source-meta">${meta}</p>` : ""}
+          ${source.reasonUsed ? `<p class="ai-source-reason">${escapeHtml(source.reasonUsed)}</p>` : ""}
           <a class="ai-mini-button" href="${escapeAttribute(source.url)}" target="_blank" rel="noreferrer">Open source</a>
-        </li>
+        </article>
       `;
     }).join("");
 
-    return `
-      <div class="ai-sources-used">
-        <span>Sources used</span>
-        <ol>${items}</ol>
-      </div>
-    `;
+    return card("Sources used", `<div class="ai-sources-list">${items}</div>`, "ai-sources-card");
   }
 
   function renderLockedArticle(article, fallbackTitle) {
     const locked = article || {};
-    return `
-      <section class="ai-section">
-        <h3>Locked article</h3>
+    return card("Original article", `
         <p class="ai-article-title">${escapeHtml(locked.title || fallbackTitle || "Locked article")}</p>
-        <p class="ai-domain">${escapeHtml(locked.domain || "")}</p>
-      </section>
-    `;
+        ${locked.domain ? `<p class="ai-domain">${escapeHtml(locked.domain)}</p>` : ""}
+      `, "ai-original-card");
   }
 
   function renderBestMatch(match, sourceTitle, sourceUrl) {
     const best = match || {};
     const url = best.url || sourceUrl || "";
-    const meta = [best.publisher, best.date].filter(Boolean).map(escapeHtml).join(" · ");
-    return `
-      <section class="ai-section ai-best-match">
-        <h3>Best free match</h3>
+    const meta = [publisherName(best), best.date].filter(Boolean).map(escapeHtml).join(" · ");
+    return card("Best free match", `
         <p class="ai-article-title">${escapeHtml(best.title || sourceTitle || "Free source found")}</p>
         ${meta ? `<p class="ai-domain">${meta}</p>` : ""}
         ${best.reason ? `<p>${escapeHtml(best.reason)}</p>` : ""}
-        ${url ? `<a class="ai-button ai-button-small" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">Open source article</a>` : ""}
-      </section>
-    `;
+        ${url ? `<a class="ai-button ai-button-small" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">Open free source</a>` : ""}
+      `, "ai-best-match");
   }
 
-  function renderReadOriginalRecommendation(recommendation, lockedArticle, bestFreeMatch, sourceUrl) {
+  function renderReadOriginalCard(recommendation, lockedArticle, bestFreeMatch, sourceUrl) {
     const rec = recommendation || {};
     const label = ["yes", "maybe", "probably_not"].includes(String(rec.label || "").toLowerCase())
       ? String(rec.label).toLowerCase()
@@ -344,8 +406,7 @@ function renderArticleIntelSidebar(state) {
       return 0;
     });
 
-    return `
-      <section class="ai-section ai-read-original">
+    return card("", `
         <div class="ai-read-heading">
           <h3>Read original?</h3>
           <span class="ai-read-badge ai-read-${escapeAttribute(label)}">${escapeHtml(formatRecommendationLabel(label))}</span>
@@ -371,8 +432,7 @@ function renderArticleIntelSidebar(state) {
             `).join("")}
           </div>
         ` : ""}
-      </section>
-    `;
+      `, "ai-read-original");
   }
 
   function renderSourceStats(checkedCount, usedCount) {
@@ -406,15 +466,77 @@ function renderArticleIntelSidebar(state) {
     chrome.runtime.sendMessage({ type: "BREVI_OPEN_POPUP_FOR_CREDITS" });
   }
 
+  function inferCreditTotal(remaining) {
+    const normalized = Math.max(0, Number(remaining || 0));
+    return PACK_TOTALS.find((total) => normalized <= total) || PACK_TOTALS[PACK_TOTALS.length - 1];
+  }
+
+  function renderCreditsProgress(currentState) {
+    const creditsRemaining = Math.max(0, Number(currentState.paidCredits || 0));
+    const creditsTotal = creditsRemaining > 0 ? inferCreditTotal(creditsRemaining) : PACK_TOTALS[0];
+    const percent = creditsTotal > 0 ? Math.max(0, Math.min(100, Math.round((creditsRemaining / creditsTotal) * 100))) : 0;
+    const isZero = creditsRemaining === 0;
+    const isLow = !isZero && creditsRemaining <= creditsTotal * 0.2;
+    const tone = isZero ? "empty" : isLow ? "low" : "normal";
+    const helper = isZero
+      ? "No credits left. Buy a credit pack to continue generating briefs."
+      : isLow
+        ? "Credits running low."
+        : "Each brief uses 1 credit.";
+
+    return card("", `
+      <div class="ai-credits-head">
+        <span>Credits remaining</span>
+        <strong>${creditsRemaining} / ${creditsTotal}</strong>
+      </div>
+      <div class="ai-progress-track" aria-label="Credits remaining">
+        <span class="ai-progress-fill ai-progress-${tone}" style="width: ${percent}%"></span>
+      </div>
+      <p class="ai-credit-helper">${escapeHtml(helper)}</p>
+      ${!isZero && !isLow ? `<p class="ai-credit-subhelper">Each brief uses 1 credit.</p>` : ""}
+      <button type="button" class="ai-button ai-button-full" id="brevi-buy-credits-progress">Buy credits</button>
+    `, "ai-credits-card");
+  }
+
+  function renderFooterActions(currentState, originalUrl = "") {
+    return card("", `
+      <div class="ai-footer-meta">
+        ${currentState.paidCreditUsed
+          ? `<span>1 paid credit used</span>`
+          : Number.isFinite(currentState.remaining)
+            ? `<span>${currentState.remaining} free summaries left today</span>`
+            : `<span>Ready for another search</span>`}
+      </div>
+      <div class="ai-actions">
+        ${originalUrl ? `<a class="ai-button ai-secondary" href="${escapeAttribute(originalUrl)}" target="_blank" rel="noreferrer">Open original article</a>` : ""}
+        <button type="button" class="ai-button ai-secondary" id="brevi-check-again">Try another source</button>
+        <button type="button" class="ai-button" id="brevi-buy-credits">Buy credits</button>
+      </div>
+    `, "ai-footer-card");
+  }
+
+  function attachCommonActions(currentState) {
+    body.querySelectorAll("#brevi-check-again").forEach((button) => {
+      button.addEventListener("click", () => requestSearchAgain(currentState));
+    });
+    body.querySelectorAll("#brevi-buy-credits, #brevi-buy-credits-progress").forEach((button) => {
+      button.addEventListener("click", requestBuyCredits);
+    });
+  }
+
   const root = document.getElementById("brevi-root");
   if (!root) return;
 
   const title = root.querySelector("#brevi-title");
   const status = root.querySelector("#brevi-status");
+  const headerMeta = root.querySelector("#brevi-header-meta");
   const body = root.querySelector("#brevi-body");
   if (!title || !body) return;
 
-  title.textContent = "Open-web summary";
+  title.textContent = "Open-web story brief";
+  if (headerMeta) {
+    headerMeta.textContent = renderHeaderMeta(state);
+  }
   if (status) {
     status.textContent = state.status === "no_reliable_free_coverage"
       ? "No match found"
@@ -427,35 +549,47 @@ function renderArticleIntelSidebar(state) {
 
   if (state.status === "loading") {
     body.innerHTML = `
-      <div class="ai-loading">
-        <span></span><span></span><span></span>
-      </div>
-      <p>Checking whether a free source covers the same story.</p>
+      ${card("Building brief", `
+        <div class="ai-loading-orbit"><span></span><span></span><span></span></div>
+        <ol class="ai-progress-steps">
+          <li class="active">Finding open-web coverage</li>
+          <li>Checking story match</li>
+          <li>Verifying sources</li>
+          <li>Building brief</li>
+        </ol>
+      `, "ai-loading-card")}
     `;
     return;
   }
 
   if (state.status === "setup") {
     body.innerHTML = `
-      <p>${escapeHtml(state.message)}</p>
-      <p class="ai-muted">Open the Brevi popup from the Chrome toolbar to configure the backend.</p>
+      ${card("Backend setup required", `
+        <p>${escapeHtml(state.message)}</p>
+        <p class="ai-muted">Open the Brevi popup from the Chrome toolbar to configure the backend.</p>
+      `, "ai-state-card")}
     `;
     return;
   }
 
   if (state.status === "limit") {
     body.innerHTML = `
-      <p>${escapeHtml(state.message)}</p>
-      <button type="button" class="ai-button" id="brevi-buy-credits">Buy credits</button>
+      ${card("Daily free limit reached", `
+        <p>${escapeHtml(state.message)}</p>
+        <button type="button" class="ai-button ai-button-full" id="brevi-buy-credits">Buy credits</button>
+      `, "ai-state-card")}
+      ${renderCreditsProgress(state)}
     `;
-    body.querySelector("#brevi-buy-credits")?.addEventListener("click", requestBuyCredits);
+    attachCommonActions(state);
     return;
   }
 
   if (state.status === "error") {
     body.innerHTML = `
-      <p>${escapeHtml(state.message || "Unable to summarize this article.")}</p>
-      <p class="ai-muted">Try another article or check that your Brevi backend is running.</p>
+      ${card("Something went wrong", `
+        <p>${escapeHtml(state.message || "Unable to summarize this article.")}</p>
+        <p class="ai-muted">Try another article or check that your Brevi backend is running.</p>
+      `, "ai-state-card")}
     `;
     return;
   }
@@ -464,21 +598,19 @@ function renderArticleIntelSidebar(state) {
     const originalUrl = state.lockedArticle?.url || "";
     title.textContent = "No reliable free coverage found";
     body.innerHTML = `
-      <p>${escapeHtml(state.warning && state.warning !== "No reliable free coverage found." ? state.warning : "Brevi found the original article, but could not find a separate open-web source that clearly covers the same story.")}</p>
-      <p class="ai-muted">No credit was used because Brevi did not generate a summary.</p>
-      ${renderLockedArticle(state.lockedArticle, state.title)}
-      <div class="ai-footer">
-        <p>${escapeHtml(renderSourceStats(state.sourcesCheckedCount, 0))}</p>
-        <p>${Number.isFinite(state.remaining) ? `${state.remaining} free summaries left today` : ""}</p>
+      ${card("No reliable free coverage found", `
+        <p>Brevi found the original article, but could not find separate open-web coverage that clearly matches this story.</p>
+        <p class="ai-muted">No credit was used because Brevi did not generate a summary.</p>
         <div class="ai-actions">
           ${originalUrl ? `<a class="ai-button" href="${escapeAttribute(originalUrl)}" target="_blank" rel="noreferrer">Open original article</a>` : ""}
-          <button type="button" class="ai-button ai-secondary" id="brevi-check-again">Search again</button>
+          <button type="button" class="ai-button ai-secondary" id="brevi-check-again">Try another search</button>
         </div>
-      </div>
+      `, "ai-empty-card")}
+      ${renderLockedArticle(state.lockedArticle, state.title)}
+      ${renderCreditsProgress(state)}
+      ${renderFooterActions(state)}
     `;
-    body.querySelector("#brevi-check-again")?.addEventListener("click", () => {
-      requestSearchAgain(state);
-    });
+    attachCommonActions(state);
     return;
   }
 
@@ -486,57 +618,37 @@ function renderArticleIntelSidebar(state) {
   const summaryHtml = isLowConfidence
     ? `<p>${escapeHtml(state.warning || "No reliable free coverage was found for the same story.")}</p>`
     : markdownBulletsToHtml(state.summaryBullets || state.summary || "No summary returned.");
-  const standardWarning = "Based on free sources. May not include details unique to the original paywalled article.";
-  const warning = `<div class="ai-warning">${escapeHtml(standardWarning)}</div>`;
-  const caution = state.warning && state.warning !== standardWarning
+  const warning = card("", `<p>${escapeHtml(TRUST_NOTE)}</p>`, "ai-note-card");
+  const caution = state.warning && state.warning !== TRUST_NOTE
     ? `<div class="ai-caution">${escapeHtml(state.warning)}</div>`
     : "";
-  const missingContext = `<div class="ai-context"><span>What may be missing</span><p>${escapeHtml("Brevi could not access the original paywalled article body, so details unique to that article may be missing.")}</p></div>`;
+  const missingContext = card("Missing context", `<p>Brevi could not access the original paywalled article body, so details unique to that article may be missing.</p>`, "ai-context-card");
   const sourcesUsedCount = Array.isArray(state.sourcesUsed) ? state.sourcesUsed.length : 0;
   const bestMatchUrl = state.bestFreeMatch?.url || state.sourceUrl || "";
-  const sourcesUsed = renderSourcesUsed(state.sourcesUsed, bestMatchUrl);
-  const sourceStats = renderSourceStats(state.sourcesCheckedCount, sourcesUsedCount);
-  const readOriginal = renderReadOriginalRecommendation(
+  const sourcesUsed = renderSourcesCard(state.sourcesUsed, bestMatchUrl);
+  const readOriginal = renderReadOriginalCard(
     state.readOriginalRecommendation,
     state.lockedArticle,
     state.bestFreeMatch,
     state.sourceUrl
   );
-  const creditLine = state.paidCreditUsed
-    ? `<p>1 paid credit used · ${Number.isFinite(state.paidCredits) ? `${state.paidCredits} paid credits left` : "Paid credits updated"}</p>`
-    : `<p>${Number.isFinite(state.remaining) ? `${state.remaining} free summaries left today` : ""}</p>`;
-  const shouldOfferCredits = state.buyCredits || (Number.isFinite(state.remaining) && state.remaining <= 0 && Number(state.paidCredits || 0) <= 0);
+  const originalUrl = state.lockedArticle?.url || "";
 
   body.innerHTML = `
-    <div class="ai-ratings">
-      <span>Match: <strong>${escapeHtml(formatRating(state.matchConfidence))}</strong></span>
-      <span>Source quality: <strong>${escapeHtml(formatRating(state.sourceQuality))}</strong></span>
-    </div>
+    ${renderStoryStatusCard(state)}
     ${warning}
     ${caution}
     ${renderLockedArticle(state.lockedArticle, state.title)}
     ${renderBestMatch(state.bestFreeMatch, state.sourceTitle, state.sourceUrl)}
-    <section class="ai-section">
-      <h3>Key points from free coverage</h3>
-      <div class="ai-summary">${summaryHtml}</div>
-    </section>
+    ${renderKeyPointsCard(summaryHtml)}
     ${readOriginal}
     ${sourcesUsed}
     ${missingContext}
-    <div class="ai-footer">
-      <p>${escapeHtml(sourceStats)}</p>
-      ${creditLine}
-      <div class="ai-actions">
-        <button type="button" class="ai-button ai-secondary" id="brevi-check-again">Search again</button>
-        ${shouldOfferCredits ? `<button type="button" class="ai-button" id="brevi-buy-credits">Buy credits</button>` : ""}
-      </div>
-    </div>
+    ${renderCreditsProgress(state)}
+    ${renderFooterActions(state, originalUrl)}
   `;
 
-  body.querySelector("#brevi-check-again")?.addEventListener("click", () => {
-    requestSearchAgain(state);
-  });
-  body.querySelector("#brevi-buy-credits")?.addEventListener("click", requestBuyCredits);
+  attachCommonActions(state);
 }
 
 async function summarizeActiveTab(options = {}) {
