@@ -88,10 +88,11 @@ async function handlePaywallDetected(article, tab) {
 
   const result = await summarizeFreeCoverage(article, settings);
   await updateSidebar(tab.id, {
-    status: "success",
+    status: result.status || "success",
     title: article.title || result.title || "Brevi summary",
     lockedArticle: result.lockedArticle,
     bestFreeMatch: result.bestFreeMatch,
+    sourceValidation: result.sourceValidation,
     summary: result.summary,
     summaryBullets: result.summaryBullets,
     sourcesUsed: result.sourcesUsed,
@@ -375,7 +376,9 @@ function renderArticleIntelSidebar(state) {
 
   title.textContent = "Open-web summary";
   if (status) {
-    status.textContent = state.status === "success" && state.matchConfidence !== "low"
+    status.textContent = state.status === "no_reliable_free_coverage"
+      ? "No match found"
+      : state.status === "success" && state.matchConfidence !== "low"
       ? "Free match found"
       : state.status === "success"
         ? "No match found"
@@ -413,6 +416,27 @@ function renderArticleIntelSidebar(state) {
       <p>${escapeHtml(state.message || "Unable to summarize this article.")}</p>
       <p class="ai-muted">Try another article or check that your Brevi backend is running.</p>
     `;
+    return;
+  }
+
+  if (state.status === "no_reliable_free_coverage") {
+    const originalUrl = state.lockedArticle?.url || "";
+    title.textContent = "No reliable free coverage found";
+    body.innerHTML = `
+      <p>Brevi found the original article, but could not find a separate open-web source that clearly covers the same story.</p>
+      ${renderLockedArticle(state.lockedArticle, state.title)}
+      <div class="ai-footer">
+        <p>${escapeHtml(renderSourceStats(state.sourcesCheckedCount, 0))}</p>
+        <p>${Number.isFinite(state.remaining) ? `${state.remaining} free summaries left today` : ""}</p>
+        <div class="ai-actions">
+          ${originalUrl ? `<a class="ai-button" href="${escapeAttribute(originalUrl)}" target="_blank" rel="noreferrer">Open original article</a>` : ""}
+          <button type="button" class="ai-button ai-secondary" id="brevi-check-again">Try another search</button>
+        </div>
+      </div>
+    `;
+    body.querySelector("#brevi-check-again")?.addEventListener("click", () => {
+      chrome.runtime.sendMessage({ type: "BREVI_MANUAL_SUMMARIZE" });
+    });
     return;
   }
 

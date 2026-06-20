@@ -98,7 +98,7 @@ export async function handleSummarize(request, response) {
     }
 
     const result = await summarizeWithOpenAI({ title, articleUrl, config });
-    const shouldCountUsage = result.matchConfidence === "high" || result.matchConfidence === "medium";
+    const shouldCountUsage = result.status === "success" && (result.matchConfidence === "high" || result.matchConfidence === "medium");
     if (shouldCountUsage) {
       await incrementUsage({ installId, email, config });
     }
@@ -106,7 +106,7 @@ export async function handleSummarize(request, response) {
       installId,
       email,
       articleUrl,
-      status: "success",
+      status: result.status === "success" ? "success" : "no_reliable_free_coverage",
       sourceUrl: result.sourceUrl,
       matchConfidence: result.matchConfidence,
       sourceQuality: result.sourceQuality,
@@ -116,10 +116,13 @@ export async function handleSummarize(request, response) {
     const nextUsage = await getUsage({ installId, email, config });
     sendJson(response, 200, {
       ok: true,
+      status: result.status,
       sourceTitle: result.sourceTitle,
       sourceUrl: result.sourceUrl,
       lockedArticle: result.lockedArticle,
       bestFreeMatch: result.bestFreeMatch,
+      sourceValidation: result.sourceValidation,
+      source_validation: result.source_validation,
       summary: result.summary,
       summaryBullets: result.summaryBullets,
       sourcesUsed: result.sourcesUsed,
