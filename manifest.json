@@ -11,9 +11,8 @@
   ],
   "host_permissions": [
     "<all_urls>",
-    "http://127.0.0.1:8787/*",
-    "http://localhost:8787/*",
-    "https://brevi-psi.vercel.app/*"
+    "https://brevi-psi.vercel.app/*",
+    "https://*.supabase.co/*"
   ],
   "background": {
     "service_worker": "background.js"

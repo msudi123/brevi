@@ -81,6 +81,23 @@ brevi-extension.zip
 
 The ZIP includes only extension files and excludes `.env`, backend files, Supabase keys, OpenAI keys, and local data.
 
+## Public Pages
+
+The backend serves the public landing and policy pages used for launch and Chrome Web Store review:
+
+```text
+/
+/privacy
+/terms
+/refunds
+/support
+/security
+/robots.txt
+/sitemap.xml
+```
+
+Support and policy contact email: `getbrevi@gmail.com`.
+
 ## Whop Later
 
 Whop is intentionally deferred in v1. Reserved env vars are already listed so OAuth, entitlement checks, checkout, and verified webhooks can be added later without changing the extension/backend contract.

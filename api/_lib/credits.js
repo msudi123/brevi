@@ -47,9 +47,11 @@ export async function createLemonCheckout({ pack, authUserId, installId, email, 
           email: email || undefined,
           custom: {
             auth_user_id: authUserId || "",
+            user_id: authUserId || "",
             install_id: installId,
             user_key: userKey,
             email: email || "",
+            user_email: email || "",
             pack: pack.id,
             credits: String(pack.credits)
           }
@@ -122,7 +124,7 @@ export function parseLemonOrderEvent(event, config) {
   const variantId = String(attributes.first_order_item?.variant_id || attributes.variant_id || custom.variant_id || "");
   const pack = packForVariantId(variantId, config) || packForId(custom.pack);
   const credits = Number(custom.credits || pack?.credits || 0);
-  const authUserId = String(custom.auth_user_id || custom.authUserId || "").trim();
+  const authUserId = String(custom.user_id || custom.auth_user_id || custom.authUserId || "").trim();
 
   return {
     eventId: String(meta.event_id || event?.id || ""),
@@ -133,6 +135,6 @@ export function parseLemonOrderEvent(event, config) {
     credits,
     authUserId,
     installId: String(custom.install_id || "").trim(),
-    email: String(attributes.user_email || attributes.email || custom.email || "").trim()
+    email: String(attributes.user_email || attributes.email || custom.user_email || custom.email || "").trim()
   };
 }

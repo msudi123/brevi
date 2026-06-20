@@ -35,9 +35,9 @@ export async function handleUsage(request, response) {
   const config = getConfig();
   const url = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
   const installId = cleanText(url.searchParams.get("installId") || url.searchParams.get("userId") || "");
-  const email = cleanText(url.searchParams.get("email") || "");
   const ipAddress = getClientIp(request);
   const auth = await resolveSupabaseAuth(request, config);
+  const email = cleanText(auth.email || "");
 
   try {
     const usage = await getUsage({ authUserId: auth.userId, installId, email, ipAddress, config });
@@ -54,9 +54,9 @@ export async function handleCredits(request, response) {
   const config = getConfig();
   const url = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
   const installId = cleanText(url.searchParams.get("installId") || url.searchParams.get("userId") || "");
-  const email = cleanText(url.searchParams.get("email") || "");
   const ipAddress = getClientIp(request);
   const auth = await resolveSupabaseAuth(request, config);
+  const email = cleanText(auth.email || "");
 
   try {
     await assertRateLimit({
@@ -94,7 +94,7 @@ export async function handleCreditCheckout(request, response) {
   try {
     const body = await readJsonBody(request);
     const installId = cleanText(body.installId || body.userId || "");
-    const email = cleanText(body.email || auth.email || "");
+    const email = cleanText(auth.email || "");
     const pack = packForId(body.pack);
     if (!installId) {
       sendJson(response, 400, { ok: false, message: "Install ID is required." }, config);
@@ -102,6 +102,10 @@ export async function handleCreditCheckout(request, response) {
     }
     if (!pack) {
       sendJson(response, 400, { ok: false, message: "Unknown credit pack." }, config);
+      return;
+    }
+    if (!auth.userId || !email) {
+      sendJson(response, 401, { ok: false, message: "Sign in to buy credits." }, config);
       return;
     }
 
@@ -226,10 +230,11 @@ export async function handleResetUsage(request, response) {
 
   const body = await readJsonBody(request);
   const ipAddress = getClientIp(request);
+  const auth = await resolveSupabaseAuth(request, config);
   await resetUsage({
-    authUserId: (await resolveSupabaseAuth(request, config)).userId,
+    authUserId: auth.userId,
     installId: cleanText(body.installId || body.userId || ""),
-    email: cleanText(body.email || ""),
+    email: cleanText(auth.email || ""),
     ipAddress,
     config
   });
@@ -250,10 +255,10 @@ export async function handleSummarize(request, response) {
   const title = cleanText(body.title || "Unknown article");
   const articleUrl = cleanText(body.url || "", 2000);
   const installId = cleanText(body.installId || body.userId || "");
-  const email = cleanText(body.email || "");
   const excludedSourceUrls = normalizeExcludedSourceUrls(body.excludedSourceUrls || body.excludeUrls || body.excluded_sources);
   const ipAddress = getClientIp(request);
   const auth = await resolveSupabaseAuth(request, config);
+  const email = cleanText(auth.email || "");
 
   if (!articleUrl) {
     sendJson(response, 400, {

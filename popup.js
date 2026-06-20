@@ -1,20 +1,27 @@
 const backendUrl = document.getElementById("backendUrl");
 const authEmail = document.getElementById("authEmail");
-const authPassword = document.getElementById("authPassword");
+const otpCode = document.getElementById("otpCode");
 const autoRunEnabled = document.getElementById("autoRunEnabled");
-const save = document.getElementById("save");
 const summarize = document.getElementById("summarize");
 const reset = document.getElementById("reset");
 const status = document.getElementById("status");
-const usage = document.getElementById("usage");
 const creditPacks = document.getElementById("creditPacks");
-const signIn = document.getElementById("signIn");
-const signUp = document.getElementById("signUp");
+const buyCredits = document.getElementById("buyCredits");
+const actionHint = document.getElementById("actionHint");
+const usageState = document.getElementById("usageState");
+const freeUsageCount = document.getElementById("freeUsageCount");
+const freeUsageProgress = document.getElementById("freeUsageProgress");
+const paidCreditsCount = document.getElementById("paidCreditsCount");
+const authCard = document.getElementById("authCard");
+const emailStep = document.getElementById("emailStep");
+const codeStep = document.getElementById("codeStep");
+const signedInView = document.getElementById("signedInView");
+const signedInEmail = document.getElementById("signedInEmail");
+const sendCode = document.getElementById("sendCode");
+const verifyCode = document.getElementById("verifyCode");
+const resendCode = document.getElementById("resendCode");
+const changeEmail = document.getElementById("changeEmail");
 const signOut = document.getElementById("signOut");
-const authStatus = document.getElementById("authStatus");
-const authState = document.getElementById("authState");
-const authUser = document.getElementById("authUser");
-const creditsCompact = document.getElementById("creditsCompact");
 
 const DEFAULT_BACKEND_URL = "https://brevi-psi.vercel.app";
 
@@ -23,42 +30,47 @@ const state = {
   supabaseUrl: "",
   supabaseAnonKey: "",
   installId: "",
-  accountEmail: "",
-  authSession: null,
-  authUser: null
+  pendingEmail: "",
+  session: null,
+  user: null,
+  packs: [],
+  settings: null
 };
 
-chrome.storage.local.get(["backendUrl", "accountEmail", "autoRunEnabled", "installId", "supabaseSession"], async (data) => {
-  state.backendUrl = normalizeBackendUrl(data.backendUrl || DEFAULT_BACKEND_URL);
-  state.accountEmail = data.accountEmail || "";
-  backendUrl.value = state.backendUrl;
-  authEmail.value = state.accountEmail;
-  autoRunEnabled.checked = data.autoRunEnabled !== false;
-  state.installId = await ensureInstallId(data.installId);
-  await loadBackendInfo();
-  await hydrateAuthSession(data.supabaseSession);
-  updateAuthUI();
-  checkUsage();
+init().catch((error) => {
+  showSignedOutEmail();
+  setStatus(error.message || "Could not load Brevi.");
 });
 
-save.addEventListener("click", () => {
+sendCode.addEventListener("click", () => sendOtp());
+verifyCode.addEventListener("click", () => verifyOtp());
+resendCode.addEventListener("click", () => sendOtp({ resend: true }));
+changeEmail.addEventListener("click", () => showSignedOutEmail());
+signOut.addEventListener("click", () => signOutUser());
+
+backendUrl.addEventListener("change", () => {
+  state.backendUrl = normalizeBackendUrl(backendUrl.value || DEFAULT_BACKEND_URL);
+  chrome.storage.local.set({ backendUrl: state.backendUrl });
+});
+
+autoRunEnabled.addEventListener("change", () => {
   chrome.runtime.sendMessage({
     type: "ARTICLE_INTEL_SAVE_SETTINGS",
-    backendUrl: backendUrl.value,
-    accountEmail: authEmail.value,
+    backendUrl: state.backendUrl,
+    accountEmail: state.user?.email || "",
     autoRunEnabled: autoRunEnabled.checked
   }, () => {
-    status.textContent = "Saved.";
-    state.backendUrl = normalizeBackendUrl(backendUrl.value);
-    state.accountEmail = authEmail.value.trim();
-    checkUsage();
-    setTimeout(() => {
-      status.textContent = "";
-    }, 1600);
+    setStatus(autoRunEnabled.checked ? "Auto-run enabled." : "Auto-run disabled.");
   });
 });
 
 summarize.addEventListener("click", () => {
+  if (!state.session?.access_token) {
+    showSignedOutEmail();
+    setStatus("Sign in to generate briefs.");
+    return;
+  }
+
   status.textContent = "Summarizing current page...";
   chrome.runtime.sendMessage({ type: "BREVI_MANUAL_SUMMARIZE" }, (response) => {
     if (response?.ok) {
@@ -67,160 +79,298 @@ summarize.addEventListener("click", () => {
     } else {
       status.textContent = response?.message || "Could not summarize this page.";
     }
-    setTimeout(() => {
-      status.textContent = "";
-    }, 2200);
+    clearStatusLater();
   });
 });
 
-reset.addEventListener("click", () => {
-  chrome.runtime.sendMessage({ type: "ARTICLE_INTEL_RESET_USAGE" }, (response) => {
-    checkUsage();
-    status.textContent = response?.ok ? "Usage reset." : "Usage reset is disabled.";
-    setTimeout(() => {
-      status.textContent = "";
-    }, 1600);
+buyCredits.addEventListener("click", () => {
+  if (!state.session?.access_token) {
+    showSignedOutEmail();
+    setStatus("Sign in to buy credits.");
+    return;
+  }
+
+  if (!state.settings || state.packs.length === 0) {
+    setStatus("Checking credit packs...");
+    checkUsage({ showPacks: true });
+    return;
+  }
+
+  creditPacks.classList.toggle("is-open");
+  if (creditPacks.classList.contains("is-open")) {
+    setStatus("Choose a credit pack.");
+  }
+});
+
+reset.addEventListener("click", async () => {
+  state.backendUrl = DEFAULT_BACKEND_URL;
+  backendUrl.value = DEFAULT_BACKEND_URL;
+  autoRunEnabled.checked = true;
+  await chrome.storage.local.set({
+    backendUrl: DEFAULT_BACKEND_URL,
+    autoRunEnabled: true
   });
+  setStatus("Local settings reset.");
 });
 
-signIn.addEventListener("click", () => {
-  authenticate("signin");
-});
+async function init() {
+  showLoading("Loading account...");
+  const stored = await chrome.storage.local.get([
+    "backendUrl",
+    "autoRunEnabled",
+    "installId",
+    "supabaseSession",
+    "supabase_access_token",
+    "supabase_refresh_token",
+    "user_id",
+    "user_email"
+  ]);
 
-signUp.addEventListener("click", () => {
-  authenticate("signup");
-});
+  state.backendUrl = normalizeBackendUrl(stored.backendUrl || DEFAULT_BACKEND_URL);
+  backendUrl.value = state.backendUrl;
+  autoRunEnabled.checked = stored.autoRunEnabled !== false;
+  state.installId = await ensureInstallId(stored.installId);
+  await loadSupabaseConfig();
 
-signOut.addEventListener("click", () => {
-  signOutUser();
-});
-
-async function authenticate(mode) {
-  const email = authEmail.value.trim();
-  const password = authPassword.value;
-
-  if (!email || !password) {
-    setAuthStatus("Enter your email and password.");
-    return;
+  const restoredSession = normalizeStoredSession(stored);
+  if (restoredSession) {
+    await restoreSession(restoredSession);
+  } else {
+    showSignedOutEmail();
   }
+}
 
-  if (!state.supabaseUrl) {
-    await loadBackendInfo();
+async function loadSupabaseConfig() {
+  const response = await fetch(`${state.backendUrl}/api/health`);
+  if (!response.ok) {
+    throw new Error("Brevi backend is unavailable.");
   }
-
-  if (!state.supabaseUrl) {
-    setAuthStatus("Supabase auth is not configured yet.");
-    return;
+  const data = await response.json();
+  state.supabaseUrl = String(data.supabaseUrl || "").replace(/\/+$/, "");
+  state.supabaseAnonKey = String(data.supabaseAnonKey || "");
+  if (!state.supabaseUrl || !state.supabaseAnonKey) {
+    throw new Error("Supabase Auth is not configured.");
   }
+}
 
-  setAuthStatus(mode === "signup" ? "Creating account..." : "Signing in...");
-
+async function restoreSession(session) {
   try {
-    const session = mode === "signup"
-      ? await supabaseSignUp(email, password)
-      : await supabaseSignIn(email, password);
-
-    if (session?.pendingConfirmation) {
-      setAuthStatus("Check your email to confirm your account.");
-      updateAuthUI();
-      return;
+    let nextSession = session;
+    if (isExpiredOrExpiring(session)) {
+      nextSession = await refreshSession(session.refresh_token);
+      await persistSession(nextSession);
     }
 
-    await persistSession(session);
-    authPassword.value = "";
-    setAuthStatus(mode === "signup" ? "Account created." : "Signed in.");
-    updateAuthUI();
+    const user = await getCurrentUser(nextSession.access_token);
+    if (!user?.id || !user?.email) {
+      throw new Error("Stored session is no longer valid.");
+    }
+
+    state.session = nextSession;
+    state.user = user;
+    await persistSession({ ...nextSession, user });
+    showSignedIn();
     await checkUsage();
   } catch (error) {
-    setAuthStatus(error.message || "Could not sign in.");
+    await clearAuthStorage();
+    showSignedOutEmail();
+    setStatus("Sign in to continue.");
+  }
+}
+
+async function sendOtp(options = {}) {
+  const email = normalizeEmail(authEmail.value || state.pendingEmail);
+  if (!email) {
+    setStatus("Enter your email.");
+    return;
+  }
+
+  try {
+    setAuthBusy(true, options.resend ? "Sending again..." : "Sending code...");
+    await loadSupabaseConfig();
+    const response = await fetch(`${state.supabaseUrl}/auth/v1/otp`, {
+      method: "POST",
+      headers: supabaseHeaders(),
+      body: JSON.stringify({
+        email,
+        create_user: true
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.msg || data.error_description || data.message || "Could not send sign-in code.");
+    }
+
+    state.pendingEmail = email;
+    authEmail.value = email;
+    otpCode.value = "";
+    showCodeSent();
+    setStatus(options.resend ? "Code sent again." : "Code sent.");
+  } catch (error) {
+    setStatus(error.message || "Could not send sign-in code.");
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function verifyOtp() {
+  const email = normalizeEmail(state.pendingEmail || authEmail.value);
+  const token = String(otpCode.value || "").trim();
+  if (!email || token.length < 6) {
+    setStatus("Enter the 6-digit code.");
+    return;
+  }
+
+  try {
+    setAuthBusy(true, "Verifying...");
+    const response = await fetch(`${state.supabaseUrl}/auth/v1/verify`, {
+      method: "POST",
+      headers: supabaseHeaders(),
+      body: JSON.stringify({
+        email,
+        token,
+        type: "email"
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.access_token || !data.refresh_token) {
+      throw new Error("Invalid or expired code. Try again.");
+    }
+
+    const user = data.user || await getCurrentUser(data.access_token);
+    const session = normalizeSupabaseSession({ ...data, user });
+    await persistSession(session);
+    state.session = session;
+    state.user = user;
+    showSignedIn();
+    setStatus("Signed in.");
+    await checkUsage();
+  } catch (error) {
+    setStatus(error.message || "Invalid or expired code. Try again.");
+  } finally {
+    setAuthBusy(false);
   }
 }
 
 async function signOutUser() {
-  if (state.authSession?.access_token && state.supabaseUrl) {
-    await fetch(`${state.supabaseUrl}/auth/v1/logout`, {
-      method: "POST",
-      headers: {
-        apikey: state.supabaseAnonKey || "",
-        authorization: `Bearer ${state.authSession.access_token}`,
-        "content-type": "application/json"
-      }
-    }).catch(() => {});
+  try {
+    if (state.session?.access_token) {
+      await fetch(`${state.supabaseUrl}/auth/v1/logout`, {
+        method: "POST",
+        headers: {
+          apikey: state.supabaseAnonKey,
+          authorization: `Bearer ${state.session.access_token}`,
+          "content-type": "application/json"
+        }
+      }).catch(() => {});
+    }
+  } finally {
+    state.session = null;
+    state.user = null;
+    await clearAuthStorage();
+    showSignedOutEmail();
+    setStatus("Signed out.");
   }
-
-  state.authSession = null;
-  state.authUser = null;
-  await chrome.storage.local.remove(["supabaseSession"]);
-  updateAuthUI();
-  setAuthStatus("Signed out.");
-  checkUsage();
 }
 
-async function checkUsage() {
-  const settings = await chrome.storage.local.get(["backendUrl", "accountEmail", "installId", "supabaseSession"]);
-  state.backendUrl = normalizeBackendUrl(settings.backendUrl || DEFAULT_BACKEND_URL);
-  state.accountEmail = state.authUser?.email || settings.accountEmail || "";
-  const url = state.backendUrl;
-  const installId = settings.installId || state.installId || await ensureInstallId(settings.installId);
-  const session = normalizeSession(settings.supabaseSession) || state.authSession;
-  const headers = session?.access_token ? { authorization: `Bearer ${session.access_token}` } : {};
+async function checkUsage(options = {}) {
+  if (!state.session?.access_token || !state.user?.email) {
+    return;
+  }
+
+  state.settings = {
+    url: state.backendUrl,
+    installId: state.installId,
+    email: state.user.email,
+    headers: { authorization: `Bearer ${state.session.access_token}` }
+  };
 
   try {
-    const response = await fetch(`${url}/api/credits?installId=${encodeURIComponent(installId)}&email=${encodeURIComponent(state.accountEmail)}`, {
-      headers
+    const response = await fetch(`${state.backendUrl}/api/credits?installId=${encodeURIComponent(state.installId)}&email=${encodeURIComponent(state.user.email)}`, {
+      headers: state.settings.headers
     });
     if (!response.ok) throw new Error("Backend unavailable");
     const data = await response.json();
-    const free = data.free || data;
-    const paidBalance = Number(data.paid?.balance || 0);
-    usage.textContent = `Free summaries today: ${free.count} / ${free.limit}\nPaid credits: ${paidBalance}`;
-    creditsCompact.textContent = paidBalance > 0 ? `${paidBalance} credits` : `${Number(free.remaining || 0)} free left`;
-    renderCreditPacks(data.packs || [], { url, installId, email: state.accountEmail, headers }, free, data.paid || {});
+    state.packs = data.packs || [];
+    renderUsage(data.free || data, data.paid || {});
+    renderCreditPacks(state.packs, state.settings, Boolean(options.showPacks));
   } catch (error) {
-    usage.textContent = "Backend status: offline";
-    creditsCompact.textContent = "--";
+    usageState.textContent = "Offline";
+    freeUsageCount.textContent = "-- / -- left";
+    paidCreditsCount.textContent = "-- credits";
+    freeUsageProgress.style.width = "0%";
+    freeUsageProgress.className = "progress-fill progress-empty";
+    actionHint.textContent = "Brevi could not reach the backend.";
+    summarize.disabled = true;
+    summarize.classList.add("is-disabled");
     creditPacks.innerHTML = "";
   }
 }
 
-function renderCreditPacks(packs, settings, free = {}, paid = {}) {
+function renderUsage(free = {}, paid = {}) {
+  const limit = Number(free.limit || 0);
+  const remaining = Number.isFinite(Number(free.remaining))
+    ? Number(free.remaining)
+    : Math.max(limit - Number(free.count || 0), 0);
+  const paidBalance = Number(paid.balance || 0);
+  const percent = limit > 0 ? Math.max(0, Math.min(100, Math.round((remaining / limit) * 100))) : 0;
+  const hasSummaries = remaining > 0 || paidBalance > 0;
+  const isLow = remaining > 0 && percent <= 20;
+  const isZero = remaining <= 0;
+
+  usageState.textContent = hasSummaries ? "Ready" : "Credits needed";
+  freeUsageCount.textContent = `${remaining} / ${limit || 5} left`;
+  paidCreditsCount.textContent = `${paidBalance} ${paidBalance === 1 ? "credit" : "credits"}`;
+  freeUsageProgress.style.width = `${percent}%`;
+  freeUsageProgress.className = `progress-fill ${isZero ? "progress-empty" : isLow ? "progress-low" : "progress-normal"}`;
+
+  summarize.disabled = !hasSummaries;
+  summarize.classList.toggle("is-disabled", !hasSummaries);
+  actionHint.textContent = hasSummaries
+    ? "Generate a brief for the page you are viewing."
+    : "No summaries left. Buy credits to continue.";
+}
+
+function renderCreditPacks(packs, settings, showPacks = false) {
   creditPacks.innerHTML = "";
-  const shouldShowPacks = Number(free.remaining || 0) <= 0 && Number(paid.balance || 0) <= 0;
-  if (!shouldShowPacks) {
-    return;
-  }
+  creditPacks.classList.toggle("is-open", showPacks);
+
+  const availablePacks = packs.filter((item) => item.available);
+  if (availablePacks.length === 0) return;
 
   const note = document.createElement("p");
   note.className = "credit-note";
-  note.textContent = "Free summaries used. Choose a credit pack to continue.";
+  note.textContent = "Choose a credit pack.";
   creditPacks.appendChild(note);
 
-  for (const pack of packs.filter((item) => item.available)) {
+  for (const pack of availablePacks) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "pack-button";
     button.textContent = `${pack.name}: ${pack.credits} credits`;
-    button.addEventListener("click", () => buyCredits(pack.id, settings));
+    button.addEventListener("click", () => buyCreditPack(pack.id, settings));
     creditPacks.appendChild(button);
   }
 }
 
-async function buyCredits(pack, settings) {
-  status.textContent = "Opening checkout...";
-  const email = (state.authUser?.email || authEmail.value.trim() || settings.email || "").trim();
-  await chrome.storage.local.set({ accountEmail: email });
+async function buyCreditPack(pack, settings) {
+  if (!state.session?.access_token) {
+    showSignedOutEmail();
+    setStatus("Sign in to buy credits.");
+    return;
+  }
 
+  status.textContent = "Opening checkout...";
   try {
     const response = await fetch(`${settings.url}/api/credits/checkout`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(settings.headers || {})
+        authorization: `Bearer ${state.session.access_token}`
       },
       body: JSON.stringify({
         pack,
-        installId: settings.installId,
-        email
+        installId: settings.installId
       })
     });
     const data = await response.json();
@@ -234,6 +384,152 @@ async function buyCredits(pack, settings) {
   }
 }
 
+async function refreshSession(refreshToken) {
+  const response = await fetch(`${state.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: supabaseHeaders(),
+    body: JSON.stringify({ refresh_token: refreshToken })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token || !data.refresh_token) {
+    throw new Error("Session refresh failed.");
+  }
+  return normalizeSupabaseSession(data);
+}
+
+async function getCurrentUser(accessToken) {
+  const response = await fetch(`${state.supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: state.supabaseAnonKey,
+      authorization: `Bearer ${accessToken}`
+    }
+  });
+  if (!response.ok) return null;
+  const user = await response.json().catch(() => null);
+  if (!user?.id || !user?.email) return null;
+  return {
+    id: String(user.id),
+    email: String(user.email)
+  };
+}
+
+async function persistSession(session) {
+  const normalized = normalizeSupabaseSession(session);
+  const user = normalized.user || session.user || state.user;
+  if (!normalized?.access_token || !normalized?.refresh_token || !user?.id || !user?.email) {
+    throw new Error("Supabase returned an incomplete session.");
+  }
+
+  const sessionWithUser = {
+    ...normalized,
+    user: {
+      id: String(user.id),
+      email: String(user.email)
+    }
+  };
+
+  await chrome.storage.local.set({
+    supabaseSession: sessionWithUser,
+    supabase_access_token: sessionWithUser.access_token,
+    supabase_refresh_token: sessionWithUser.refresh_token,
+    supabase_expires_at: sessionWithUser.expires_at || "",
+    user_id: sessionWithUser.user.id,
+    user_email: sessionWithUser.user.email,
+    accountEmail: sessionWithUser.user.email
+  });
+}
+
+async function clearAuthStorage() {
+  await chrome.storage.local.remove([
+    "supabaseSession",
+    "supabase_access_token",
+    "supabase_refresh_token",
+    "supabase_expires_at",
+    "user_id",
+    "user_email",
+    "accountEmail"
+  ]);
+}
+
+function normalizeStoredSession(stored) {
+  if (stored.supabaseSession?.access_token && stored.supabaseSession?.refresh_token) {
+    return normalizeSupabaseSession(stored.supabaseSession);
+  }
+  if (stored.supabase_access_token && stored.supabase_refresh_token) {
+    return normalizeSupabaseSession({
+      access_token: stored.supabase_access_token,
+      refresh_token: stored.supabase_refresh_token,
+      expires_at: stored.supabase_expires_at,
+      user: stored.user_id && stored.user_email ? {
+        id: stored.user_id,
+        email: stored.user_email
+      } : null
+    });
+  }
+  return null;
+}
+
+function normalizeSupabaseSession(session) {
+  if (!session || typeof session !== "object") return null;
+  if (!session.access_token || !session.refresh_token) return null;
+  const expiresAt = Number(session.expires_at || 0)
+    || (session.expires_in ? Math.floor(Date.now() / 1000) + Number(session.expires_in) : 0);
+  return {
+    ...session,
+    expires_at: expiresAt || undefined
+  };
+}
+
+function isExpiredOrExpiring(session) {
+  return Number(session?.expires_at || 0) > 0 && Date.now() / 1000 >= Number(session.expires_at) - 60;
+}
+
+function showLoading(message) {
+  authCard.classList.remove("hidden");
+  signedInView.classList.add("hidden");
+  emailStep.classList.remove("hidden");
+  codeStep.classList.add("hidden");
+  setAuthBusy(true, message);
+}
+
+function showSignedOutEmail() {
+  authCard.classList.remove("hidden");
+  signedInView.classList.add("hidden");
+  emailStep.classList.remove("hidden");
+  codeStep.classList.add("hidden");
+  setAuthBusy(false);
+}
+
+function showCodeSent() {
+  authCard.classList.remove("hidden");
+  signedInView.classList.add("hidden");
+  emailStep.classList.add("hidden");
+  codeStep.classList.remove("hidden");
+  otpCode.focus();
+}
+
+function showSignedIn() {
+  authCard.classList.add("hidden");
+  signedInView.classList.remove("hidden");
+  signedInEmail.textContent = state.user?.email || "";
+  setAuthBusy(false);
+}
+
+function setAuthBusy(isBusy, message = "") {
+  sendCode.disabled = isBusy;
+  verifyCode.disabled = isBusy;
+  resendCode.disabled = isBusy;
+  changeEmail.disabled = isBusy;
+  if (message) status.textContent = message;
+}
+
+function supabaseHeaders() {
+  return {
+    apikey: state.supabaseAnonKey,
+    "content-type": "application/json"
+  };
+}
+
 async function ensureInstallId(installId) {
   if (installId) return installId;
   const nextInstallId = crypto.randomUUID();
@@ -241,157 +537,21 @@ async function ensureInstallId(installId) {
   return nextInstallId;
 }
 
-async function loadBackendInfo() {
-  try {
-    const response = await fetch(`${state.backendUrl}/api/health`);
-    if (!response.ok) return null;
-    const data = await response.json();
-    state.supabaseUrl = data.supabaseUrl || "";
-    state.supabaseAnonKey = data.supabaseAnonKey || "";
-    return data;
-  } catch (error) {
-    return null;
-  }
-}
-
-async function hydrateAuthSession(storedSession) {
-  const session = normalizeSession(storedSession);
-  if (!session) {
-    state.authSession = null;
-    state.authUser = null;
-    return;
-  }
-
-  state.authSession = session;
-  state.authUser = session.user || null;
-  if (state.authUser?.email) {
-    authEmail.value = state.authUser.email;
-    state.accountEmail = state.authUser.email;
-  }
-
-  const shouldRefresh = Number(session.expires_at || 0) && Date.now() / 1000 >= Number(session.expires_at) - 60;
-  if (shouldRefresh && state.supabaseUrl) {
-    try {
-      const refreshed = await supabaseRefreshSession(session.refresh_token);
-      await persistSession(refreshed);
-    } catch (error) {
-      await chrome.storage.local.remove(["supabaseSession"]);
-      state.authSession = null;
-      state.authUser = null;
-    }
-  }
-}
-
-async function persistSession(session) {
-  const normalized = normalizeSession(session);
-  if (!normalized) {
-    throw new Error("Supabase returned no session.");
-  }
-
-  state.authSession = normalized;
-  state.authUser = normalized.user || null;
-  if (state.authUser?.email) {
-    state.accountEmail = state.authUser.email;
-    authEmail.value = state.authUser.email;
-    await chrome.storage.local.set({ accountEmail: state.authUser.email });
-  }
-  await chrome.storage.local.set({ supabaseSession: normalized });
-  updateAuthUI();
-}
-
-function updateAuthUI() {
-  const signedIn = Boolean(state.authSession?.access_token);
-  authState.textContent = signedIn ? "Signed in" : "Signed out";
-  authState.className = signedIn ? "badge badge-mint" : "badge badge-neutral";
-  authUser.textContent = state.authUser?.email || state.accountEmail || "";
-  signOut.classList.toggle("hidden", !signedIn);
-}
-
-function setAuthStatus(text) {
-  authStatus.textContent = text || "";
-}
-
-async function supabaseSignIn(email, password) {
-  if (!state.supabaseUrl) throw new Error("Supabase auth is not configured.");
-  const response = await fetch(`${state.supabaseUrl}/auth/v1/token?grant_type=password`, {
-    method: "POST",
-    headers: {
-      apikey: await getSupabaseAnonKey(),
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({ email, password })
-  });
-  return readSupabaseSession(response);
-}
-
-async function supabaseSignUp(email, password) {
-  if (!state.supabaseUrl) throw new Error("Supabase auth is not configured.");
-  const response = await fetch(`${state.supabaseUrl}/auth/v1/signup`, {
-    method: "POST",
-    headers: {
-      apikey: await getSupabaseAnonKey(),
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({ email, password })
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.msg || data.error_description || data.message || "Could not create account.");
-  }
-  if (data.session?.access_token && data.session?.refresh_token) {
-    return data.session;
-  }
-  if (data.user) {
-    return { pendingConfirmation: true, user: data.user };
-  }
-  throw new Error("Supabase did not return a session.");
-}
-
-async function supabaseRefreshSession(refreshToken) {
-  if (!state.supabaseUrl) throw new Error("Supabase auth is not configured.");
-  const response = await fetch(`${state.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
-    method: "POST",
-    headers: {
-      apikey: await getSupabaseAnonKey(),
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({ refresh_token: refreshToken })
-  });
-  return readSupabaseSession(response);
-}
-
-async function readSupabaseSession(response) {
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.msg || data.error_description || data.message || "Could not sign in.");
-  }
-
-  const session = data.session || data;
-  if (!session?.access_token || !session?.refresh_token) {
-    throw new Error("Supabase did not return a session.");
-  }
-  return session;
-}
-
-function normalizeSession(session) {
-  if (!session || typeof session !== "object") return null;
-  if (!session.access_token || !session.refresh_token) return null;
-  return session;
-}
-
-async function getSupabaseAnonKey() {
-  if (state.supabaseAnonKey) return state.supabaseAnonKey;
-  const response = await fetch(`${state.backendUrl}/api/health`);
-  if (!response.ok) throw new Error("Backend unavailable.");
-  const data = await response.json();
-  state.supabaseUrl = data.supabaseUrl || state.supabaseUrl;
-  state.supabaseAnonKey = data.supabaseAnonKey || "";
-  if (!state.supabaseAnonKey) {
-    throw new Error("Supabase auth is not configured.");
-  }
-  return state.supabaseAnonKey;
-}
-
 function normalizeBackendUrl(value) {
   return String(value || DEFAULT_BACKEND_URL).trim().replace(/\/+$/, "");
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function setStatus(message) {
+  status.textContent = message;
+  clearStatusLater();
+}
+
+function clearStatusLater() {
+  setTimeout(() => {
+    status.textContent = "";
+  }, 2200);
 }

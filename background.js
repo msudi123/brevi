@@ -685,18 +685,33 @@ function extractArticleFromPage() {
 }
 
 async function getSettings() {
-  const data = await chrome.storage.local.get(["backendUrl", "accountEmail", "installId", "supabaseSession"]);
+  const data = await chrome.storage.local.get([
+    "backendUrl",
+    "accountEmail",
+    "installId",
+    "supabaseSession",
+    "supabase_access_token",
+    "supabase_refresh_token",
+    "supabase_expires_at",
+    "user_email"
+  ]);
   let installId = data.installId;
   if (!installId) {
     installId = crypto.randomUUID();
     await chrome.storage.local.set({ installId });
   }
 
+  const authSession = normalizeSupabaseSession(data.supabaseSession) || normalizeSupabaseSession({
+    access_token: data.supabase_access_token,
+    refresh_token: data.supabase_refresh_token,
+    expires_at: data.supabase_expires_at
+  });
+
   return {
     backendUrl: normalizeBackendUrl(data.backendUrl || DEFAULT_BACKEND_URL),
-    accountEmail: data.accountEmail || "",
+    accountEmail: data.user_email || data.accountEmail || "",
     installId,
-    authSession: normalizeSupabaseSession(data.supabaseSession)
+    authSession
   };
 }
 

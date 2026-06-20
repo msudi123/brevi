@@ -1,4 +1,6 @@
 import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { extname, join, normalize } from "node:path";
 import { getConfig, loadLocalEnv } from "./api/_lib/env.js";
 import {
   handleCreditCheckout,
@@ -11,6 +13,7 @@ import {
   handleUsage
 } from "./api/_lib/handlers.js";
 import { sendCors, sendHtml, sendJson } from "./api/_lib/http.js";
+import { handleSiteRequest } from "./api/_lib/site.js";
 import { renderTestPaywallPage } from "./api/_lib/test-page.js";
 
 loadLocalEnv();
@@ -30,6 +33,15 @@ const server = createServer(async (request, response) => {
     }
 
     const url = new URL(request.url, `http://${request.headers.host || HOST}`);
+
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/assets/")) {
+      await serveAsset(url.pathname, response, request.method);
+      return;
+    }
+
+    if (request.method === "GET" && handleSiteRequest(request, response, config)) {
+      return;
+    }
 
     if (request.method === "GET" && (url.pathname === "/health" || url.pathname === "/api/health")) {
       await handleHealth(request, response);
@@ -92,3 +104,32 @@ const server = createServer(async (request, response) => {
 server.listen(PORT, HOST, () => {
   console.log(`Brevi backend running on http://${HOST}:${PORT}`);
 });
+
+async function serveAsset(pathname, response, method = "GET") {
+  const safePath = normalize(pathname).replace(/^(\.\.[/\\])+/, "");
+  if (!safePath.startsWith("/assets/")) {
+    response.writeHead(404);
+    response.end("Not found");
+    return;
+  }
+
+  try {
+    const filePath = join(process.cwd(), safePath);
+    const content = await readFile(filePath);
+    response.writeHead(200, {
+      "content-type": contentTypeFor(filePath),
+      "cache-control": "public, max-age=86400"
+    });
+    response.end(method === "HEAD" ? undefined : content);
+  } catch (error) {
+    response.writeHead(404);
+    response.end("Not found");
+  }
+}
+
+function contentTypeFor(filePath) {
+  if (extname(filePath).toLowerCase() === ".png") return "image/png";
+  if (extname(filePath).toLowerCase() === ".svg") return "image/svg+xml";
+  if (extname(filePath).toLowerCase() === ".jpg" || extname(filePath).toLowerCase() === ".jpeg") return "image/jpeg";
+  return "application/octet-stream";
+}

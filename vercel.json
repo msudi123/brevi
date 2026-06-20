@@ -1,6 +1,38 @@
 {
   "rewrites": [
     {
+      "source": "/",
+      "destination": "/api/site"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/api/site"
+    },
+    {
+      "source": "/terms",
+      "destination": "/api/site"
+    },
+    {
+      "source": "/refunds",
+      "destination": "/api/site"
+    },
+    {
+      "source": "/support",
+      "destination": "/api/site"
+    },
+    {
+      "source": "/security",
+      "destination": "/api/site"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/api/site"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/site"
+    },
+    {
       "source": "/test-paywall",
       "destination": "/api/test-paywall"
     },

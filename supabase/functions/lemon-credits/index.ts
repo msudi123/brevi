@@ -110,8 +110,8 @@ function parseEvent(event: any) {
     pack,
     credits: Number(custom.credits || pack?.credits || 0),
     installId: String(custom.install_id || "").trim(),
-    authUserId: String(custom.auth_user_id || custom.authUserId || "").trim(),
-    email: String(attributes.user_email || attributes.email || custom.email || "").trim()
+    authUserId: String(custom.user_id || custom.auth_user_id || custom.authUserId || "").trim(),
+    email: String(attributes.user_email || attributes.email || custom.user_email || custom.email || "").trim()
   };
 }
 
