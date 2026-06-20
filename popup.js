@@ -97,6 +97,9 @@ function renderCreditPacks(packs, settings, free = {}, paid = {}) {
 
 async function buyCredits(pack, settings) {
   status.textContent = "Opening checkout...";
+  const email = accountEmail.value.trim();
+  await chrome.storage.local.set({ accountEmail: email });
+
   try {
     const response = await fetch(`${settings.url}/api/credits/checkout`, {
       method: "POST",
@@ -104,7 +107,7 @@ async function buyCredits(pack, settings) {
       body: JSON.stringify({
         pack,
         installId: settings.installId,
-        email: settings.email
+        email
       })
     });
     const data = await response.json();

@@ -104,6 +104,8 @@ test("createLemonCheckout constrains custom checkout to the selected variant", a
     });
 
     assert.deepEqual(payload.data.attributes.product_options.enabled_variants, [101]);
+    assert.equal(payload.data.attributes.checkout_data.email, "reader@example.com");
+    assert.equal(payload.data.attributes.checkout_data.custom.email, "reader@example.com");
     assert.equal("dark" in payload.data.attributes.checkout_options, false);
   } finally {
     global.fetch = previousFetch;

@@ -48,6 +48,7 @@ export async function createLemonCheckout({ pack, installId, email, config }) {
           custom: {
             install_id: installId,
             user_key: userKey,
+            email: email || "",
             pack: pack.id,
             credits: String(pack.credits)
           }
