@@ -48,9 +48,9 @@ summarize.addEventListener("click", () => {
 });
 
 reset.addEventListener("click", () => {
-  chrome.runtime.sendMessage({ type: "ARTICLE_INTEL_RESET_USAGE" }, () => {
+  chrome.runtime.sendMessage({ type: "ARTICLE_INTEL_RESET_USAGE" }, (response) => {
     checkUsage();
-    status.textContent = "Usage reset.";
+    status.textContent = response?.ok ? "Usage reset." : "Usage reset is disabled.";
     setTimeout(() => {
       status.textContent = "";
     }, 1600);
@@ -69,15 +69,22 @@ async function checkUsage() {
     const data = await response.json();
     const free = data.free || data;
     usage.textContent = `Free summaries today: ${free.count} / ${free.limit}\nPaid credits: ${data.paid?.balance || 0}`;
-    renderCreditPacks(data.packs || [], { url, installId, email });
+    renderCreditPacks(data.packs || [], { url, installId, email }, free, data.paid || {});
   } catch (error) {
     usage.textContent = "Backend status: offline";
     creditPacks.innerHTML = "";
   }
 }
 
-function renderCreditPacks(packs, settings) {
+function renderCreditPacks(packs, settings, free = {}, paid = {}) {
   creditPacks.innerHTML = "";
+  if (Number(free.remaining || 0) <= 0 && Number(paid.balance || 0) <= 0) {
+    const note = document.createElement("p");
+    note.className = "credit-note";
+    note.textContent = "Free summaries used. Choose a credit pack to continue.";
+    creditPacks.appendChild(note);
+  }
+
   for (const pack of packs.filter((item) => item.available)) {
     const button = document.createElement("button");
     button.type = "button";

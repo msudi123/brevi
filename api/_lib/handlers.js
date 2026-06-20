@@ -311,6 +311,9 @@ export async function handleSummarize(request, response) {
 
     const nextUsage = await getUsage({ installId, email, ipAddress, config });
     const nextPaidAccount = await getCreditAccount({ installId, email, config });
+    const remaining = Math.max(config.freeDailyLimit - nextUsage.count, 0);
+    const shouldOfferCredits = remaining <= 0 && nextPaidAccount.balance <= 0;
+
     sendJson(response, 200, {
       ok: true,
       status: result.status,
@@ -331,10 +334,11 @@ export async function handleSummarize(request, response) {
       keyMissingContext: result.keyMissingContext,
       readOriginalRecommendation: result.readOriginalRecommendation,
       warning: result.warning,
-      remaining: Math.max(config.freeDailyLimit - nextUsage.count, 0),
+      remaining,
       paid: usage.count >= config.freeDailyLimit && shouldCountUsage,
       paidCreditUsed: usage.count >= config.freeDailyLimit && shouldCountUsage ? 1 : 0,
-      paidCredits: nextPaidAccount.balance
+      paidCredits: nextPaidAccount.balance,
+      buyCredits: shouldOfferCredits || undefined
     }, config);
   } catch (error) {
     await safeRecordSummaryEvent({

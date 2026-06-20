@@ -115,6 +115,7 @@ async function handlePaywallDetected(article, tab, options = {}) {
     readOriginalRecommendation: result.readOriginalRecommendation,
     warning: result.warning,
     remaining: result.remaining,
+    buyCredits: result.buyCredits,
     paid: result.paid,
     paidCreditUsed: result.paidCreditUsed,
     paidCredits: result.paidCredits
@@ -504,6 +505,7 @@ function renderArticleIntelSidebar(state) {
   const creditLine = state.paidCreditUsed
     ? `<p>1 paid credit used · ${Number.isFinite(state.paidCredits) ? `${state.paidCredits} paid credits left` : "Paid credits updated"}</p>`
     : `<p>${Number.isFinite(state.remaining) ? `${state.remaining} free summaries left today` : ""}</p>`;
+  const shouldOfferCredits = state.buyCredits || (Number.isFinite(state.remaining) && state.remaining <= 0 && Number(state.paidCredits || 0) <= 0);
 
   body.innerHTML = `
     <div class="ai-ratings">
@@ -526,6 +528,7 @@ function renderArticleIntelSidebar(state) {
       ${creditLine}
       <div class="ai-actions">
         <button type="button" class="ai-button ai-secondary" id="brevi-check-again">Search again</button>
+        ${shouldOfferCredits ? `<button type="button" class="ai-button" id="brevi-buy-credits">Buy credits</button>` : ""}
       </div>
     </div>
   `;
@@ -533,6 +536,7 @@ function renderArticleIntelSidebar(state) {
   body.querySelector("#brevi-check-again")?.addEventListener("click", () => {
     requestSearchAgain(state);
   });
+  body.querySelector("#brevi-buy-credits")?.addEventListener("click", requestBuyCredits);
 }
 
 async function summarizeActiveTab(options = {}) {

@@ -165,6 +165,13 @@ button {
   margin: 10px 0 6px;
 }
 
+.credit-note {
+  margin: 0;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 750;
+}
+
 .pack-button {
   width: 100%;
   border: 1px solid rgba(20, 184, 166, 0.28);
