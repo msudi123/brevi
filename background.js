@@ -1,4 +1,5 @@
-const DEFAULT_BACKEND_URL = "https://brevi-psi.vercel.app";
+const DEFAULT_BACKEND_URL = "https://brevi.dev";
+const FALLBACK_BACKEND_URL = "https://brevi-psi.vercel.app";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "BREVI_PAYWALL_DETECTED" || message?.type === "ARTICLE_INTEL_PAYWALL_DETECTED") {
@@ -33,7 +34,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message?.type === "ARTICLE_INTEL_SAVE_SETTINGS") {
     chrome.storage.local.set({
-      backendUrl: normalizeBackendUrl(message.backendUrl),
       accountEmail: message.accountEmail?.trim() || "",
       autoRunEnabled: message.autoRunEnabled !== false
     }, () => {
@@ -686,7 +686,7 @@ function extractArticleFromPage() {
 
 async function getSettings() {
   const data = await chrome.storage.local.get([
-    "backendUrl",
+    "systemBackendUrl",
     "accountEmail",
     "installId",
     "supabaseSession",
@@ -708,11 +708,33 @@ async function getSettings() {
   });
 
   return {
-    backendUrl: normalizeBackendUrl(data.backendUrl || DEFAULT_BACKEND_URL),
+    backendUrl: await resolveBackendUrl(data.systemBackendUrl),
     accountEmail: data.user_email || data.accountEmail || "",
     installId,
     authSession
   };
+}
+
+async function resolveBackendUrl(systemBackendUrl) {
+  const candidates = [
+    DEFAULT_BACKEND_URL,
+    systemBackendUrl,
+    FALLBACK_BACKEND_URL
+  ].filter(Boolean);
+
+  for (const backendUrl of [...new Set(candidates)].map(normalizeBackendUrl)) {
+    try {
+      const response = await fetch(`${backendUrl}/api/health`);
+      if (response.ok) {
+        await chrome.storage.local.set({ systemBackendUrl: backendUrl });
+        return backendUrl;
+      }
+    } catch (error) {
+      // Try the next backend candidate.
+    }
+  }
+
+  return normalizeBackendUrl(systemBackendUrl || DEFAULT_BACKEND_URL);
 }
 
 function normalizeSupabaseSession(session) {

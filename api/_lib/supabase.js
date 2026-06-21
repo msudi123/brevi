@@ -30,10 +30,13 @@ export async function getCreditAccount({ authUserId, installId, email, config })
   const userKey = userKeyForIdentity({ authUserId, installId });
   const lookupKeys = creditAccountKeysForIdentity({ authUserId, installId });
   await upsertCreditAccount({ authUserId, installId, email, config });
-  const rows = await supabaseFetch(config, `/rest/v1/credit_accounts?user_key=in.(${lookupKeys.map(encodeURIComponent).join(",")})&select=user_key,install_id,email,balance`, {
-    method: "GET"
-  });
-  const accounts = Array.isArray(rows) ? rows : [];
+  const [keyRows, emailRows] = await Promise.all([
+    supabaseFetch(config, `/rest/v1/credit_accounts?user_key=in.(${lookupKeys.map(encodeURIComponent).join(",")})&select=user_key,install_id,email,balance`, {
+      method: "GET"
+    }),
+    getCreditAccountsForVerifiedEmail({ authUserId, email, config })
+  ]);
+  const accounts = uniqueAccounts([...(Array.isArray(keyRows) ? keyRows : []), ...emailRows]);
   const balance = accounts.reduce((sum, account) => sum + Number(account.balance || 0), 0);
   return {
     userKey,
@@ -41,6 +44,15 @@ export async function getCreditAccount({ authUserId, installId, email, config })
     email: cleanNullable(email),
     balance
   };
+}
+
+async function getCreditAccountsForVerifiedEmail({ authUserId, email, config }) {
+  const emailHash = verifiedEmailHashForIdentity({ authUserId, email });
+  if (!emailHash) return [];
+  const rows = await supabaseFetch(config, `/rest/v1/credit_accounts?email_hash=eq.${encodeURIComponent(emailHash)}&select=user_key,install_id,email,balance`, {
+    method: "GET"
+  });
+  return Array.isArray(rows) ? rows : [];
 }
 
 export async function upsertCreditAccount({ authUserId, installId, email, config }) {
@@ -61,8 +73,8 @@ export async function upsertCreditAccount({ authUserId, installId, email, config
 
 export async function spendPaidCredit({ authUserId, installId, email, articleUrl, config }) {
   assertSupabase(config);
-  const userKeys = creditSpendKeysForIdentity({ authUserId, installId });
   await upsertCreditAccount({ authUserId, installId, email, config });
+  const userKeys = await creditSpendKeysForIdentity({ authUserId, installId, email, config });
 
   for (const userKey of userKeys) {
     const rows = await supabaseFetch(config, "/rest/v1/rpc/spend_paid_credit", {
@@ -283,8 +295,14 @@ export function creditAccountKeysForIdentity({ authUserId, installId } = {}) {
   return [userKeyFor(installId)];
 }
 
-export function creditSpendKeysForIdentity({ authUserId, installId } = {}) {
-  return creditAccountKeysForIdentity({ authUserId, installId });
+export async function creditSpendKeysForIdentity({ authUserId, installId, email, config } = {}) {
+  const directKeys = creditAccountKeysForIdentity({ authUserId, installId });
+  if (!config) return directKeys;
+  const emailAccounts = await getCreditAccountsForVerifiedEmail({ authUserId, email, config });
+  return uniqueKeys([
+    ...directKeys,
+    ...emailAccounts.map((account) => account.user_key)
+  ]);
 }
 
 export async function supabaseFetch(config, path, options) {
@@ -324,6 +342,12 @@ function cleanNullable(value) {
   return cleaned || null;
 }
 
+function verifiedEmailHashForIdentity({ authUserId, email } = {}) {
+  const normalizedEmail = normalizeUserId(email);
+  if (!authUserId || !normalizedEmail || normalizedEmail === "anonymous") return "";
+  return sha256(normalizedEmail);
+}
+
 function normalizeIp(value) {
   const ip = String(value || "").split(",")[0].trim().toLowerCase();
   if (!ip || ip === "unknown") return "";
@@ -336,4 +360,14 @@ function sha256(value) {
 
 function uniqueKeys(keys) {
   return [...new Set(keys.filter(Boolean))];
+}
+
+function uniqueAccounts(accounts) {
+  const byUserKey = new Map();
+  for (const account of accounts) {
+    if (account?.user_key && !byUserKey.has(account.user_key)) {
+      byUserKey.set(account.user_key, account);
+    }
+  }
+  return [...byUserKey.values()];
 }

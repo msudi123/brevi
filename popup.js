@@ -1,9 +1,7 @@
-const backendUrl = document.getElementById("backendUrl");
 const authEmail = document.getElementById("authEmail");
 const otpCode = document.getElementById("otpCode");
 const autoRunEnabled = document.getElementById("autoRunEnabled");
 const summarize = document.getElementById("summarize");
-const reset = document.getElementById("reset");
 const status = document.getElementById("status");
 const creditPacks = document.getElementById("creditPacks");
 const buyCredits = document.getElementById("buyCredits");
@@ -23,7 +21,8 @@ const resendCode = document.getElementById("resendCode");
 const changeEmail = document.getElementById("changeEmail");
 const signOut = document.getElementById("signOut");
 
-const DEFAULT_BACKEND_URL = "https://brevi-psi.vercel.app";
+const DEFAULT_BACKEND_URL = "https://brevi.dev";
+const FALLBACK_BACKEND_URL = "https://brevi-psi.vercel.app";
 
 const state = {
   backendUrl: DEFAULT_BACKEND_URL,
@@ -48,15 +47,9 @@ resendCode.addEventListener("click", () => sendOtp({ resend: true }));
 changeEmail.addEventListener("click", () => showSignedOutEmail());
 signOut.addEventListener("click", () => signOutUser());
 
-backendUrl.addEventListener("change", () => {
-  state.backendUrl = normalizeBackendUrl(backendUrl.value || DEFAULT_BACKEND_URL);
-  chrome.storage.local.set({ backendUrl: state.backendUrl });
-});
-
 autoRunEnabled.addEventListener("change", () => {
   chrome.runtime.sendMessage({
     type: "ARTICLE_INTEL_SAVE_SETTINGS",
-    backendUrl: state.backendUrl,
     accountEmail: state.user?.email || "",
     autoRunEnabled: autoRunEnabled.checked
   }, () => {
@@ -102,21 +95,9 @@ buyCredits.addEventListener("click", () => {
   }
 });
 
-reset.addEventListener("click", async () => {
-  state.backendUrl = DEFAULT_BACKEND_URL;
-  backendUrl.value = DEFAULT_BACKEND_URL;
-  autoRunEnabled.checked = true;
-  await chrome.storage.local.set({
-    backendUrl: DEFAULT_BACKEND_URL,
-    autoRunEnabled: true
-  });
-  setStatus("Local settings reset.");
-});
-
 async function init() {
   showLoading("Loading account...");
   const stored = await chrome.storage.local.get([
-    "backendUrl",
     "autoRunEnabled",
     "installId",
     "supabaseSession",
@@ -126,8 +107,8 @@ async function init() {
     "user_email"
   ]);
 
-  state.backendUrl = normalizeBackendUrl(stored.backendUrl || DEFAULT_BACKEND_URL);
-  backendUrl.value = state.backendUrl;
+  state.backendUrl = DEFAULT_BACKEND_URL;
+  await chrome.storage.local.remove(["backendUrl"]);
   autoRunEnabled.checked = stored.autoRunEnabled !== false;
   state.installId = await ensureInstallId(stored.installId);
   await loadSupabaseConfig();
@@ -141,11 +122,9 @@ async function init() {
 }
 
 async function loadSupabaseConfig() {
-  const response = await fetch(`${state.backendUrl}/api/health`);
-  if (!response.ok) {
-    throw new Error("Brevi backend is unavailable.");
-  }
-  const data = await response.json();
+  const { backendUrl, data } = await fetchBackendHealth();
+  state.backendUrl = backendUrl;
+  await chrome.storage.local.set({ systemBackendUrl: backendUrl });
   state.supabaseUrl = String(data.supabaseUrl || "").replace(/\/+$/, "");
   state.supabaseAnonKey = String(data.supabaseAnonKey || "");
   if (!state.supabaseUrl || !state.supabaseAnonKey) {
@@ -153,22 +132,41 @@ async function loadSupabaseConfig() {
   }
 }
 
+async function fetchBackendHealth() {
+  const urls = [DEFAULT_BACKEND_URL, FALLBACK_BACKEND_URL];
+  let lastError = null;
+
+  for (const backendUrl of urls) {
+    try {
+      const response = await fetch(`${backendUrl}/api/health`);
+      if (!response.ok) {
+        lastError = new Error("Brevi backend is unavailable.");
+        continue;
+      }
+      return { backendUrl, data: await response.json() };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("Brevi backend is unavailable.");
+}
+
 async function restoreSession(session) {
   try {
     let nextSession = session;
     if (isExpiredOrExpiring(session)) {
       nextSession = await refreshSession(session.refresh_token);
-      await persistSession(nextSession);
     }
 
-    const user = await getCurrentUser(nextSession.access_token);
+    const user = nextSession.user || session.user || await getCurrentUser(nextSession.access_token);
     if (!user?.id || !user?.email) {
       throw new Error("Stored session is no longer valid.");
     }
 
-    state.session = nextSession;
+    state.session = { ...nextSession, user };
     state.user = user;
-    await persistSession({ ...nextSession, user });
+    await persistSession(state.session);
     showSignedIn();
     await checkUsage();
   } catch (error) {

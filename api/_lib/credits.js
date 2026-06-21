@@ -35,7 +35,7 @@ export async function createLemonCheckout({ pack, authUserId, installId, email, 
     throw new Error(`${pack.name} credits are not configured.`);
   }
 
-  const appUrl = config.publicAppUrl || "https://brevi-psi.vercel.app";
+  const appUrl = config.publicAppUrl || "https://brevi.dev";
   const userKey = userKeyForIdentity({ authUserId, installId });
   const numericVariantId = Number(variantId);
   const enabledVariantId = Number.isFinite(numericVariantId) ? numericVariantId : variantId;

@@ -9,7 +9,7 @@ const NAV_ITEMS = [
 ];
 
 export function handleSiteRequest(request, response, config) {
-  const url = new URL(request.url || "/", `https://${request.headers.host || "getbrevireader.com"}`);
+  const url = new URL(request.url || "/", `https://${request.headers.host || "brevi.dev"}`);
   const path = normalizePath(url.pathname);
 
   if (path === "/robots.txt") {
@@ -407,7 +407,7 @@ ${paths.map((path) => `  <url><loc>${base}${path === "/" ? "" : path}</loc></url
 }
 
 function siteUrl(config) {
-  return config.publicAppUrl || "https://getbrevireader.com";
+  return config.publicAppUrl || "https://brevi.dev";
 }
 
 function normalizePath(pathname) {

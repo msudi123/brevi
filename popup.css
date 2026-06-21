@@ -427,22 +427,6 @@ button:disabled {
   transform: translateX(18px);
 }
 
-.advanced {
-  color: var(--brevi-slate);
-}
-
-.advanced summary {
-  cursor: pointer;
-  padding: 4px 2px;
-  color: var(--brevi-muted);
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.advanced-card {
-  margin-top: 8px;
-}
-
 .status {
   min-height: 18px;
   color: #0F766E;

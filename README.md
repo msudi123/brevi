@@ -57,10 +57,10 @@ WHOP_PRODUCT_ID=
 WHOP_CHECKOUT_URL=https://whop.com
 ```
 
-After deployment, set the extension backend URL to:
+The production extension uses the Brevi backend at:
 
 ```text
-https://brevi-psi.vercel.app
+https://brevi.dev
 ```
 
 For production, replace `PUBLIC_EXTENSION_ORIGIN=*` with your Chrome extension origin once the extension ID is stable.
