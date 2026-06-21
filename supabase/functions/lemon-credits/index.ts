@@ -44,7 +44,7 @@ Deno.serve(async (request) => {
 
   const args = rpcName === "grant_purchased_credits"
     ? {
-      p_user_key: parsed.authUserId ? `auth:${normalizeUserId(parsed.authUserId)}` : `install:${normalizeUserId(parsed.installId)}`,
+      p_user_key: await resolveCreditUserKey(parsed),
       p_install_id: parsed.installId,
       p_email: parsed.email || null,
       p_lemon_order_id: parsed.orderId,
@@ -54,7 +54,7 @@ Deno.serve(async (request) => {
       p_credits: parsed.credits
     }
     : {
-      p_user_key: parsed.authUserId ? `auth:${normalizeUserId(parsed.authUserId)}` : `install:${normalizeUserId(parsed.installId)}`,
+      p_user_key: await resolveCreditUserKey(parsed),
       p_lemon_order_id: parsed.orderId,
       p_lemon_event_id: parsed.eventId || null,
       p_credits: parsed.credits
@@ -63,6 +63,51 @@ Deno.serve(async (request) => {
   const result = await callRpc(rpcName, args);
   return json({ ok: true, result });
 });
+
+async function resolveCreditUserKey(parsed: {
+  authUserId: string;
+  installId: string;
+  email: string;
+}) {
+  if (parsed.authUserId) {
+    return `auth:${normalizeUserId(parsed.authUserId)}`;
+  }
+
+  const normalizedEmail = String(parsed.email || "").trim().toLowerCase();
+  if (normalizedEmail) {
+    const emailHash = await sha256Hex(normalizedEmail);
+    const rows = await supabaseSelect(
+      `/rest/v1/credit_accounts?email_hash=eq.${encodeURIComponent(emailHash)}&select=user_key`
+    );
+    const authKey = (Array.isArray(rows) ? rows : [])
+      .map((row: { user_key?: string }) => row.user_key)
+      .find((key) => String(key).startsWith("auth:"));
+    if (authKey) return authKey;
+  }
+
+  return `install:${normalizeUserId(parsed.installId)}`;
+}
+
+async function supabaseSelect(path: string) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const response = await fetch(`${supabaseUrl}${path}`, {
+    headers: {
+      apikey: serviceRoleKey,
+      authorization: `Bearer ${serviceRoleKey}`
+    }
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Supabase query failed (${response.status}): ${text.slice(0, 240)}`);
+  }
+  return text ? JSON.parse(text) : [];
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return toHex(digest);
+}
 
 async function callRpc(name: string, body: Record<string, unknown>) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";

@@ -273,16 +273,9 @@ async function signOutUser() {
 }
 
 async function checkUsage(options = {}) {
-  if (!state.session?.access_token || !state.user?.email) {
+  if (!(await ensureAuthenticatedSession())) {
     return;
   }
-
-  state.settings = {
-    url: state.backendUrl,
-    installId: state.installId,
-    email: state.user.email,
-    headers: { authorization: `Bearer ${state.session.access_token}` }
-  };
 
   try {
     const response = await fetch(`${state.backendUrl}/api/credits?installId=${encodeURIComponent(state.installId)}&email=${encodeURIComponent(state.user.email)}`, {
@@ -312,13 +305,7 @@ async function openCreditPacks() {
     return;
   }
 
-  if (!state.session?.access_token && state.storedSession) {
-    setStatus("Restoring your session...");
-    await restoreSession(state.storedSession);
-  }
-
-  if (!state.session?.access_token) {
-    showSignedOutEmail();
+  if (!(await ensureAuthenticatedSession())) {
     setStatus("Sign in to buy credits.");
     return;
   }
@@ -379,25 +366,20 @@ function renderCreditPacks(packs, settings, showPacks = false) {
     button.type = "button";
     button.className = "pack-button";
     button.textContent = `${pack.name}: ${pack.credits} credits`;
-    button.addEventListener("click", () => buyCreditPack(pack.id, settings));
+    button.addEventListener("click", () => buyCreditPack(pack.id));
     creditPacks.appendChild(button);
   }
 }
 
-async function buyCreditPack(pack, settings) {
-  if (!state.session?.access_token && state.storedSession) {
-    await restoreSession(state.storedSession);
-  }
-
-  if (!state.session?.access_token) {
-    showSignedOutEmail();
+async function buyCreditPack(pack) {
+  if (!(await ensureAuthenticatedSession())) {
     setStatus("Sign in to buy credits.");
     return;
   }
 
   status.textContent = "Opening checkout...";
   try {
-    const response = await fetch(`${settings.url}/api/credits/checkout`, {
+    const response = await fetch(`${state.backendUrl}/api/credits/checkout`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -405,7 +387,7 @@ async function buyCreditPack(pack, settings) {
       },
       body: JSON.stringify({
         pack,
-        installId: settings.installId
+        installId: state.installId
       })
     });
     const data = await response.json().catch(() => ({}));
@@ -417,6 +399,45 @@ async function buyCreditPack(pack, settings) {
   } catch (error) {
     status.textContent = error.message;
   }
+}
+
+async function ensureAuthenticatedSession() {
+  if (!state.session?.access_token && state.storedSession) {
+    await restoreSession(state.storedSession);
+  } else if (
+    state.session?.access_token
+    && isExpiredOrExpiring(state.session)
+    && state.session.refresh_token
+  ) {
+    try {
+      const refreshed = await refreshSession(state.session.refresh_token);
+      const user = refreshed.user || state.user || await getCurrentUser(refreshed.access_token);
+      if (!user?.id || !user?.email) {
+        throw new Error("Session refresh failed.");
+      }
+      state.session = { ...refreshed, user };
+      state.user = user;
+      await persistSession(state.session);
+      showSignedIn();
+    } catch {
+      await clearAuthStorage();
+      showSignedOutEmail();
+      return false;
+    }
+  }
+
+  if (!state.session?.access_token || !state.user?.email) {
+    showSignedOutEmail();
+    return false;
+  }
+
+  state.settings = {
+    url: state.backendUrl,
+    installId: state.installId,
+    email: state.user.email,
+    headers: { authorization: `Bearer ${state.session.access_token}` }
+  };
+  return true;
 }
 
 async function refreshSession(refreshToken) {

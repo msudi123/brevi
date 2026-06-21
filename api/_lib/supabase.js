@@ -97,15 +97,61 @@ export async function spendPaidCredit({ authUserId, installId, email, articleUrl
   return { spent: false, balance: 0 };
 }
 
+export async function resolveCreditUserKey({ authUserId, installId, email, config } = {}) {
+  if (authUserId) {
+    return userKeyForIdentity({ authUserId });
+  }
+
+  const normalizedEmail = normalizeUserId(email);
+  if (!normalizedEmail || normalizedEmail === "anonymous" || !config) {
+    return userKeyForIdentity({ authUserId, installId });
+  }
+
+  const emailHash = sha256(normalizedEmail);
+  const rows = await supabaseFetch(
+    config,
+    `/rest/v1/credit_accounts?email_hash=eq.${encodeURIComponent(emailHash)}&select=user_key`,
+    { method: "GET" }
+  );
+  const authKey = (Array.isArray(rows) ? rows : [])
+    .map((row) => row.user_key)
+    .find((key) => String(key).startsWith("auth:"));
+  if (authKey) return authKey;
+
+  const authUserIdFromEmail = await findAuthUserIdByEmail(normalizedEmail, config);
+  if (authUserIdFromEmail) {
+    return userKeyForIdentity({ authUserId: authUserIdFromEmail });
+  }
+
+  return userKeyForIdentity({ authUserId, installId });
+}
+
 export async function grantPurchasedCredits({ authUserId, installId, email, lemonOrderId, lemonEventId, variantId, pack, credits, config }) {
   assertSupabase(config);
-  const userKey = await upsertCreditAccount({ authUserId, installId, email, config });
+  const normalizedEmail = normalizeUserId(email);
+  const resolvedAuthUserId = authUserId || await findAuthUserIdByEmail(normalizedEmail, config) || "";
+  const userKey = await resolveCreditUserKey({
+    authUserId: resolvedAuthUserId,
+    installId,
+    email: normalizedEmail,
+    config
+  });
+  await supabaseFetch(config, "/rest/v1/credit_accounts?on_conflict=user_key", {
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=minimal",
+    body: JSON.stringify({
+      user_key: userKey,
+      install_id: cleanNullable(installId),
+      email: cleanNullable(normalizedEmail),
+      email_hash: normalizedEmail && normalizedEmail !== "anonymous" ? sha256(normalizedEmail) : null
+    })
+  });
   const rows = await supabaseFetch(config, "/rest/v1/rpc/grant_purchased_credits", {
     method: "POST",
     body: JSON.stringify({
       p_user_key: userKey,
       p_install_id: cleanNullable(installId),
-      p_email: cleanNullable(email),
+      p_email: cleanNullable(normalizedEmail),
       p_lemon_order_id: String(lemonOrderId || ""),
       p_lemon_event_id: cleanNullable(lemonEventId),
       p_variant_id: String(variantId || ""),
@@ -113,12 +159,27 @@ export async function grantPurchasedCredits({ authUserId, installId, email, lemo
       p_credits: Number(credits || 0)
     })
   });
-  return Array.isArray(rows) ? rows[0] : rows;
+  const result = Array.isArray(rows) ? rows[0] : rows;
+  if (resolvedAuthUserId && normalizedEmail && normalizedEmail !== "anonymous") {
+    await mergeCreditAccountsForVerifiedEmail({
+      authUserId: resolvedAuthUserId,
+      email: normalizedEmail,
+      config
+    });
+  }
+  return result;
 }
 
 export async function refundPurchasedCredits({ authUserId, installId, email, lemonOrderId, lemonEventId, credits, config }) {
   assertSupabase(config);
-  const userKey = await upsertCreditAccount({ authUserId, installId, email, config });
+  const normalizedEmail = normalizeUserId(email);
+  const resolvedAuthUserId = authUserId || await findAuthUserIdByEmail(normalizedEmail, config) || "";
+  const userKey = await resolveCreditUserKey({
+    authUserId: resolvedAuthUserId,
+    installId,
+    email: normalizedEmail,
+    config
+  });
   const rows = await supabaseFetch(config, "/rest/v1/rpc/refund_purchased_credits", {
     method: "POST",
     body: JSON.stringify({
@@ -362,6 +423,31 @@ function verifiedEmailHashForIdentity({ authUserId, email } = {}) {
   const normalizedEmail = normalizeUserId(email);
   if (!authUserId || !normalizedEmail || normalizedEmail === "anonymous") return "";
   return sha256(normalizedEmail);
+}
+
+async function findAuthUserIdByEmail(email, config) {
+  const normalizedEmail = normalizeUserId(email);
+  if (!normalizedEmail || normalizedEmail === "anonymous" || !config?.supabaseUrl || !config?.supabaseServiceRoleKey) {
+    return "";
+  }
+
+  try {
+    const response = await fetch(
+      `${config.supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(normalizedEmail)}`,
+      {
+        headers: {
+          apikey: config.supabaseServiceRoleKey,
+          authorization: `Bearer ${config.supabaseServiceRoleKey}`
+        }
+      }
+    );
+    if (!response.ok) return "";
+    const data = await response.json().catch(() => ({}));
+    const users = Array.isArray(data?.users) ? data.users : [];
+    return String(users[0]?.id || "").trim();
+  } catch {
+    return "";
+  }
 }
 
 function normalizeIp(value) {
