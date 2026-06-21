@@ -30,6 +30,7 @@ export async function getCreditAccount({ authUserId, installId, email, config })
   const userKey = userKeyForIdentity({ authUserId, installId });
   const lookupKeys = creditAccountKeysForIdentity({ authUserId, installId });
   await upsertCreditAccount({ authUserId, installId, email, config });
+  await mergeCreditAccountsForVerifiedEmail({ authUserId, email, config });
   const [keyRows, emailRows] = await Promise.all([
     supabaseFetch(config, `/rest/v1/credit_accounts?user_key=in.(${lookupKeys.map(encodeURIComponent).join(",")})&select=user_key,install_id,email,balance`, {
       method: "GET"
@@ -74,6 +75,7 @@ export async function upsertCreditAccount({ authUserId, installId, email, config
 export async function spendPaidCredit({ authUserId, installId, email, articleUrl, config }) {
   assertSupabase(config);
   await upsertCreditAccount({ authUserId, installId, email, config });
+  await mergeCreditAccountsForVerifiedEmail({ authUserId, email, config });
   const userKeys = await creditSpendKeysForIdentity({ authUserId, installId, email, config });
 
   for (const userKey of userKeys) {
@@ -124,6 +126,20 @@ export async function refundPurchasedCredits({ authUserId, installId, email, lem
       p_lemon_order_id: String(lemonOrderId || ""),
       p_lemon_event_id: cleanNullable(lemonEventId),
       p_credits: Number(credits || 0)
+    })
+  });
+  return Array.isArray(rows) ? rows[0] : rows;
+}
+
+async function mergeCreditAccountsForVerifiedEmail({ authUserId, email, config }) {
+  const emailHash = verifiedEmailHashForIdentity({ authUserId, email });
+  if (!emailHash) return null;
+  const targetUserKey = userKeyForIdentity({ authUserId });
+  const rows = await supabaseFetch(config, "/rest/v1/rpc/merge_credit_accounts_by_email", {
+    method: "POST",
+    body: JSON.stringify({
+      p_target_user_key: targetUserKey,
+      p_email_hash: emailHash
     })
   });
   return Array.isArray(rows) ? rows[0] : rows;
