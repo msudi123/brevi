@@ -30,7 +30,7 @@ export async function getCreditAccount({ authUserId, installId, email, config })
   const userKey = userKeyForIdentity({ authUserId, installId });
   const lookupKeys = creditAccountKeysForIdentity({ authUserId, installId });
   await upsertCreditAccount({ authUserId, installId, email, config });
-  await mergeCreditAccountsForVerifiedEmail({ authUserId, email, config });
+  await tryMergeCreditAccountsForVerifiedEmail({ authUserId, email, config });
   const [keyRows, emailRows] = await Promise.all([
     supabaseFetch(config, `/rest/v1/credit_accounts?user_key=in.(${lookupKeys.map(encodeURIComponent).join(",")})&select=user_key,install_id,email,balance`, {
       method: "GET"
@@ -75,7 +75,7 @@ export async function upsertCreditAccount({ authUserId, installId, email, config
 export async function spendPaidCredit({ authUserId, installId, email, articleUrl, config }) {
   assertSupabase(config);
   await upsertCreditAccount({ authUserId, installId, email, config });
-  await mergeCreditAccountsForVerifiedEmail({ authUserId, email, config });
+  await tryMergeCreditAccountsForVerifiedEmail({ authUserId, email, config });
   const userKeys = await creditSpendKeysForIdentity({ authUserId, installId, email, config });
 
   for (const userKey of userKeys) {
@@ -161,7 +161,7 @@ export async function grantPurchasedCredits({ authUserId, installId, email, lemo
   });
   const result = Array.isArray(rows) ? rows[0] : rows;
   if (resolvedAuthUserId && normalizedEmail && normalizedEmail !== "anonymous") {
-    await mergeCreditAccountsForVerifiedEmail({
+    await tryMergeCreditAccountsForVerifiedEmail({
       authUserId: resolvedAuthUserId,
       email: normalizedEmail,
       config
@@ -204,6 +204,15 @@ async function mergeCreditAccountsForVerifiedEmail({ authUserId, email, config }
     })
   });
   return Array.isArray(rows) ? rows[0] : rows;
+}
+
+async function tryMergeCreditAccountsForVerifiedEmail({ authUserId, email, config }) {
+  try {
+    return await mergeCreditAccountsForVerifiedEmail({ authUserId, email, config });
+  } catch (error) {
+    console.warn("Brevi credit merge fallback:", error.message || error);
+    return null;
+  }
 }
 
 export async function assertRateLimit({ key, route, limit, windowSeconds, config }) {

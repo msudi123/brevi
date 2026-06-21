@@ -262,9 +262,9 @@ begin
     set user_key = p_target_user_key
     where user_key = any(v_source_keys);
 
-    update public.credit_accounts
-    set balance = balance + v_merged_balance
-    where user_key = p_target_user_key;
+    update public.credit_accounts ca
+    set balance = ca.balance + v_merged_balance
+    where ca.user_key = p_target_user_key;
 
     delete from public.credit_accounts
     where user_key = any(v_source_keys);

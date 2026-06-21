@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveCreditUserKey } from "../api/_lib/supabase.js";
+import { getCreditAccount, resolveCreditUserKey } from "../api/_lib/supabase.js";
 
 const config = {
   supabaseUrl: "https://example.supabase.co",
@@ -88,6 +88,74 @@ test("resolveCreditUserKey falls back to install key when no auth match exists",
     });
     assert.equal(userKey, "install:install-abc");
     assert.equal(callCount, 2);
+  } finally {
+    global.fetch = previousFetch;
+  }
+});
+
+test("getCreditAccount falls back to email-linked balances when merge RPC fails", async () => {
+  const previousFetch = global.fetch;
+  global.fetch = async (url, options = {}) => {
+    const target = String(url);
+
+    if (target.includes("/credit_accounts?on_conflict=user_key")) {
+      return {
+        ok: true,
+        status: 201,
+        async text() {
+          return "";
+        }
+      };
+    }
+
+    if (target.includes("/rpc/merge_credit_accounts_by_email")) {
+      return {
+        ok: false,
+        status: 400,
+        async text() {
+          return JSON.stringify({ message: "column reference \"balance\" is ambiguous" });
+        }
+      };
+    }
+
+    if (target.includes("user_key=in.")) {
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify([
+            { user_key: "auth:user-abc", balance: 0 },
+            { user_key: "install:install-abc", balance: 0 }
+          ]);
+        }
+      };
+    }
+
+    if (target.includes("email_hash=eq.")) {
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify([
+            { user_key: "install:old-install-1", balance: 50 },
+            { user_key: "install:old-install-2", balance: 100 }
+          ]);
+        }
+      };
+    }
+
+    throw new Error(`Unexpected fetch: ${target} ${options.method || "GET"}`);
+  };
+
+  try {
+    const account = await getCreditAccount({
+      authUserId: "user-abc",
+      installId: "install-abc",
+      email: "reader@example.com",
+      config
+    });
+    assert.equal(account.userKey, "auth:user-abc");
+    assert.equal(account.balance, 150);
   } finally {
     global.fetch = previousFetch;
   }
