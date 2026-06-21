@@ -9,7 +9,7 @@ const NAV_ITEMS = [
 ];
 
 export function handleSiteRequest(request, response, config) {
-  const url = new URL(request.url || "/", `https://${request.headers.host || "brevi.dev"}`);
+  const url = new URL(request.url || "/", `https://${request.headers.host || "getbrevi.dev"}`);
   const path = normalizePath(url.pathname);
 
   if (path === "/robots.txt") {
@@ -230,7 +230,45 @@ function renderTerms() {
 
 function renderSupport() {
   return legalLayout("Support", `
-    <p>Need help with Brevi? Email <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
+    <p>Need help with Brevi? Send a message here or email <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
+
+    <form class="support-form" id="supportForm">
+      <div class="form-grid">
+        <label>
+          <span>Name</span>
+          <input name="name" autocomplete="name" placeholder="Your name">
+        </label>
+        <label>
+          <span>Email</span>
+          <input name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+        </label>
+      </div>
+      <label>
+        <span>What is this about?</span>
+        <select name="category">
+          <option value="general">General question</option>
+          <option value="billing">Billing</option>
+          <option value="credits">Credits</option>
+          <option value="bug">Bug report</option>
+          <option value="feedback">Product feedback</option>
+          <option value="security">Security</option>
+        </select>
+      </label>
+      <label>
+        <span>Subject</span>
+        <input name="subject" maxlength="160" placeholder="Short summary">
+      </label>
+      <label>
+        <span>Message</span>
+        <textarea name="message" rows="7" minlength="10" maxlength="4000" placeholder="Tell us what happened, what you expected, and any article/order details that help." required></textarea>
+      </label>
+      <label class="field-trap" aria-hidden="true">
+        <span>Company</span>
+        <input name="company" tabindex="-1" autocomplete="off">
+      </label>
+      <button class="button primary" type="submit">Send message</button>
+      <p class="form-status" id="supportStatus" role="status"></p>
+    </form>
 
     <h2>Include this when you contact us</h2>
     <ul>
@@ -242,6 +280,7 @@ function renderSupport() {
 
     <h2>Common fixes</h2>
     <p>Reload the extension after updates, confirm you are signed in, and make sure the article page has fully loaded before generating a brief.</p>
+    <script>${supportFormScript()}</script>
   `);
 }
 
@@ -381,11 +420,59 @@ function siteCss() {
     .legal-doc p, .legal-doc li { color:var(--slate); font-size:16px; line-height:1.7; }
     .legal-doc ul { padding-left:20px; }
     .updated { color:var(--muted); font-size:14px; }
+    .support-form { display:grid; gap:14px; margin:24px 0 8px; padding:18px; border:1px solid var(--border); border-radius:14px; background:#F8FAFC; }
+    .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .support-form label { display:grid; gap:7px; color:var(--navy); font-size:13px; font-weight:900; }
+    .support-form input, .support-form select, .support-form textarea { width:100%; border:1px solid var(--border); border-radius:10px; background:white; color:var(--navy); font:inherit; font-size:15px; }
+    .support-form input, .support-form select { min-height:44px; padding:0 12px; }
+    .support-form textarea { resize:vertical; min-height:150px; padding:12px; line-height:1.5; }
+    .support-form input:focus, .support-form select:focus, .support-form textarea:focus { border-color:var(--teal); box-shadow:0 0 0 3px rgba(20,184,166,.14); outline:0; }
+    .support-form button { width:max-content; border:0; cursor:pointer; }
+    .support-form button:disabled { cursor:not-allowed; opacity:.68; }
+    .form-status { min-height:22px; margin:0; color:#0F766E; font-size:14px; font-weight:800; }
+    .form-status.error { color:#B45309; }
+    .field-trap { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
     footer { display:flex; justify-content:space-between; gap:24px; flex-wrap:wrap; padding:26px clamp(18px, 5vw, 72px); border-top:1px solid var(--border); background:white; }
     footer p { margin:4px 0 0; color:var(--muted); font-size:14px; }
     footer a { color:var(--slate); font-size:14px; font-weight:750; text-decoration:none; }
-    @media (max-width: 820px) { .site-header { align-items:flex-start; flex-direction:column; } .hero { grid-template-columns:1fr; padding-top:42px; } .product-panel { min-height:0; } .feature-grid, .install-section { grid-template-columns:1fr; } h1 { font-size:42px; } }
+    @media (max-width: 820px) { .site-header { align-items:flex-start; flex-direction:column; } .hero { grid-template-columns:1fr; padding-top:42px; } .product-panel { min-height:0; } .feature-grid, .install-section, .form-grid { grid-template-columns:1fr; } h1 { font-size:42px; } }
   `;
+}
+
+function supportFormScript() {
+  return `
+    (() => {
+      const form = document.getElementById("supportForm");
+      const status = document.getElementById("supportStatus");
+      if (!form || !status) return;
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = form.querySelector("button[type='submit']");
+        const payload = Object.fromEntries(new FormData(form).entries());
+        status.className = "form-status";
+        status.textContent = "Sending...";
+        button.disabled = true;
+        try {
+          const response = await fetch("/api/support/message", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || data.ok === false) {
+            throw new Error(data.message || "Could not send your message.");
+          }
+          form.reset();
+          status.textContent = data.message || "Thanks. Your message was sent.";
+        } catch (error) {
+          status.className = "form-status error";
+          status.textContent = error.message || "Could not send your message.";
+        } finally {
+          button.disabled = false;
+        }
+      });
+    })();
+  `.replaceAll("</", "<\\/");
 }
 
 function renderRobots(config) {
@@ -407,7 +494,7 @@ ${paths.map((path) => `  <url><loc>${base}${path === "/" ? "" : path}</loc></url
 }
 
 function siteUrl(config) {
-  return config.publicAppUrl || "https://brevi.dev";
+  return config.publicAppUrl || "https://getbrevi.dev";
 }
 
 function normalizePath(pathname) {

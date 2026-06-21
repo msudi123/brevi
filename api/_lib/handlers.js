@@ -16,6 +16,8 @@ import {
 } from "./supabase.js";
 import { cleanText } from "./text.js";
 
+const SUPPORT_CATEGORIES = new Set(["general", "billing", "credits", "bug", "security", "feedback"]);
+
 export async function handleHealth(request, response) {
   const config = getConfig();
   sendJson(response, 200, {
@@ -216,6 +218,126 @@ export async function handleLemonWebhook(request, response) {
       message: error.message
     }, config);
   }
+}
+
+export async function handleSupportMessage(request, response) {
+  const config = getConfig();
+  const ipAddress = getClientIp(request);
+
+  try {
+    if (!config.resendApiKey) {
+      sendJson(response, 503, {
+        ok: false,
+        message: "Support messaging is not configured yet."
+      }, config);
+      return;
+    }
+
+    await assertRateLimit({
+      key: `support:${ipAddress}`,
+      route: "support_message",
+      limit: 4,
+      windowSeconds: 3600,
+      config
+    });
+
+    const body = await readJsonBody(request);
+    if (cleanText(body.company || "")) {
+      sendJson(response, 200, { ok: true }, config);
+      return;
+    }
+
+    const name = cleanText(body.name || "", 120);
+    const email = cleanText(body.email || "", 180).toLowerCase();
+    const category = SUPPORT_CATEGORIES.has(String(body.category || "").toLowerCase())
+      ? String(body.category).toLowerCase()
+      : "general";
+    const subject = cleanText(body.subject || "", 160);
+    const message = cleanText(body.message || "", 4000);
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      sendJson(response, 400, { ok: false, message: "Enter a valid email address." }, config);
+      return;
+    }
+    if (!message || message.length < 10) {
+      sendJson(response, 400, { ok: false, message: "Tell us a little more so we can help." }, config);
+      return;
+    }
+
+    await sendSupportEmail({
+      config,
+      name,
+      email,
+      category,
+      subject,
+      message,
+      ipAddress
+    });
+
+    sendJson(response, 200, {
+      ok: true,
+      message: "Thanks. Your message was sent to Brevi support."
+    }, config);
+  } catch (error) {
+    sendJson(response, error.statusCode || 500, {
+      ok: false,
+      message: error.message || "Could not send your message right now."
+    }, config);
+  }
+}
+
+async function sendSupportEmail({ config, name, email, category, subject, message, ipAddress }) {
+  const safeSubject = subject || `Brevi ${category} message`;
+  const html = `
+    <div style="font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0B1320;line-height:1.6;">
+      <h2 style="margin:0 0 12px;">New Brevi support message</h2>
+      <p><strong>Category:</strong> ${escapeEmailHtml(category)}</p>
+      <p><strong>Name:</strong> ${escapeEmailHtml(name || "Not provided")}</p>
+      <p><strong>Email:</strong> ${escapeEmailHtml(email)}</p>
+      <p><strong>IP:</strong> ${escapeEmailHtml(ipAddress || "unknown")}</p>
+      <hr style="border:none;border-top:1px solid #E2E8F0;margin:20px 0;">
+      <p style="white-space:pre-wrap;">${escapeEmailHtml(message)}</p>
+    </div>
+  `;
+  const text = [
+    "New Brevi support message",
+    `Category: ${category}`,
+    `Name: ${name || "Not provided"}`,
+    `Email: ${email}`,
+    `IP: ${ipAddress || "unknown"}`,
+    "",
+    message
+  ].join("\n");
+
+  const resendResponse = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "authorization": `Bearer ${config.resendApiKey}`,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      from: config.supportFromEmail,
+      to: [config.supportEmail],
+      reply_to: email,
+      subject: `[Brevi] ${safeSubject}`,
+      html,
+      text
+    })
+  });
+
+  if (!resendResponse.ok) {
+    const data = await resendResponse.json().catch(() => ({}));
+    throw new Error(data?.message || "Resend could not send the support message.");
+  }
+}
+
+function escapeEmailHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 export async function handleResetUsage(request, response) {

@@ -21,7 +21,7 @@ const resendCode = document.getElementById("resendCode");
 const changeEmail = document.getElementById("changeEmail");
 const signOut = document.getElementById("signOut");
 
-const DEFAULT_BACKEND_URL = "https://brevi.dev";
+const DEFAULT_BACKEND_URL = "https://getbrevi.dev";
 const FALLBACK_BACKEND_URL = "https://brevi-psi.vercel.app";
 
 const state = {

@@ -490,7 +490,7 @@ async function fetchArticlePage(url) {
       signal: controller.signal,
       headers: {
         "accept": "text/html,application/xhtml+xml",
-        "user-agent": "BreviBot/1.0 (+https://brevi.dev)"
+        "user-agent": "BreviBot/1.0 (+https://getbrevi.dev)"
       }
     });
     const contentType = response.headers.get("content-type") || "";

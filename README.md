@@ -12,10 +12,13 @@ OPENAI_API_KEY=sk-proj-...
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=...
 SUPABASE_ANON_KEY=...
+RESEND_API_KEY=...
+SUPPORT_EMAIL=getbrevi@gmail.com
+SUPPORT_FROM_EMAIL=Brevi Support <support@getbrevi.dev>
 FREE_DAILY_LIMIT=5
 ```
 
-Supabase Auth in the popup uses the public anon key plus email/password sign-in.
+Supabase Auth in the popup uses the public anon key plus email one-time-code sign-in.
 
 3. Create the Supabase tables by running `supabase/schema.sql` in the Supabase SQL editor.
 4. Start the backend:
@@ -48,6 +51,9 @@ FREE_DAILY_LIMIT=5
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_ANON_KEY=
+RESEND_API_KEY=
+SUPPORT_EMAIL=getbrevi@gmail.com
+SUPPORT_FROM_EMAIL=Brevi Support <support@getbrevi.dev>
 PUBLIC_EXTENSION_ORIGIN=*
 WHOP_API_KEY=
 WHOP_CLIENT_ID=
@@ -60,7 +66,7 @@ WHOP_CHECKOUT_URL=https://whop.com
 The production extension uses the Brevi backend at:
 
 ```text
-https://brevi.dev
+https://getbrevi.dev
 ```
 
 For production, replace `PUBLIC_EXTENSION_ORIGIN=*` with your Chrome extension origin once the extension ID is stable.

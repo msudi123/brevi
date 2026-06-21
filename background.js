@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_URL = "https://brevi.dev";
+const DEFAULT_BACKEND_URL = "https://getbrevi.dev";
 const FALLBACK_BACKEND_URL = "https://brevi-psi.vercel.app";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

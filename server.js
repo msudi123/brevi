@@ -9,6 +9,7 @@ import {
   handleHealth,
   handleLemonWebhook,
   handleResetUsage,
+  handleSupportMessage,
   handleSummarize,
   handleUsage
 } from "./api/_lib/handlers.js";
@@ -75,6 +76,11 @@ const server = createServer(async (request, response) => {
 
     if (request.method === "POST" && url.pathname === "/api/lemonsqueezy/webhook") {
       await handleLemonWebhook(request, response);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/support/message") {
+      await handleSupportMessage(request, response);
       return;
     }
 

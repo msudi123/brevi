@@ -11,7 +11,7 @@
   ],
   "host_permissions": [
     "<all_urls>",
-    "https://brevi.dev/*",
+    "https://getbrevi.dev/*",
     "https://brevi-psi.vercel.app/*",
     "https://*.supabase.co/*"
   ],

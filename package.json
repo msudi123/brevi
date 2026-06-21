@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test test/*.test.js",
-    "check": "node --check server.js && node --check api/health.js && node --check api/site.js && node --check api/_lib/site.js && node --check api/summarize.js && node --check api/test-paywall.js && node --check api/usage/index.js && node --check api/usage/reset.js && node --check api/credits/index.js && node --check api/credits/checkout.js && node --check api/credits/confirm.js && node --check api/lemonsqueezy/webhook.js && node --check background.js && node --check content.js && node --check popup.js",
+    "check": "node --check server.js && node --check api/health.js && node --check api/site.js && node --check api/_lib/site.js && node --check api/summarize.js && node --check api/test-paywall.js && node --check api/usage/index.js && node --check api/usage/reset.js && node --check api/credits/index.js && node --check api/credits/checkout.js && node --check api/credits/confirm.js && node --check api/lemonsqueezy/webhook.js && node --check api/support/message.js && node --check background.js && node --check content.js && node --check popup.js",
     "package:extension": "node scripts/package-extension.mjs"
   },
   "engines": {
