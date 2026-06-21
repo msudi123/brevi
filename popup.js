@@ -25,6 +25,7 @@ const DEFAULT_BACKEND_URL = "https://getbrevi.dev";
 const FALLBACK_BACKEND_URL = "https://brevi-psi.vercel.app";
 
 const state = {
+  mode: "loading",
   backendUrl: DEFAULT_BACKEND_URL,
   supabaseUrl: "",
   supabaseAnonKey: "",
@@ -33,7 +34,9 @@ const state = {
   session: null,
   user: null,
   packs: [],
-  settings: null
+  settings: null,
+  storedSession: null,
+  restoringSession: null
 };
 
 init().catch((error) => {
@@ -77,22 +80,7 @@ summarize.addEventListener("click", () => {
 });
 
 buyCredits.addEventListener("click", () => {
-  if (!state.session?.access_token) {
-    showSignedOutEmail();
-    setStatus("Sign in to buy credits.");
-    return;
-  }
-
-  if (!state.settings || state.packs.length === 0) {
-    setStatus("Checking credit packs...");
-    checkUsage({ showPacks: true });
-    return;
-  }
-
-  creditPacks.classList.toggle("is-open");
-  if (creditPacks.classList.contains("is-open")) {
-    setStatus("Choose a credit pack.");
-  }
+  openCreditPacks();
 });
 
 async function init() {
@@ -114,6 +102,7 @@ async function init() {
   await loadSupabaseConfig();
 
   const restoredSession = normalizeStoredSession(stored);
+  state.storedSession = restoredSession;
   if (restoredSession) {
     await restoreSession(restoredSession);
   } else {
@@ -153,7 +142,16 @@ async function fetchBackendHealth() {
 }
 
 async function restoreSession(session) {
+  if (state.restoringSession) return state.restoringSession;
+  state.restoringSession = restoreSessionInner(session).finally(() => {
+    state.restoringSession = null;
+  });
+  return state.restoringSession;
+}
+
+async function restoreSessionInner(session) {
   try {
+    setMode("loading");
     let nextSession = session;
     if (isExpiredOrExpiring(session)) {
       nextSession = await refreshSession(session.refresh_token);
@@ -236,10 +234,13 @@ async function verifyOtp() {
     }
 
     const user = data.user || await getCurrentUser(data.access_token);
+    if (!user?.id || !user?.email) {
+      throw new Error("Could not load your Brevi account. Try signing in again.");
+    }
     const session = normalizeSupabaseSession({ ...data, user });
-    await persistSession(session);
-    state.session = session;
     state.user = user;
+    state.session = { ...session, user };
+    await persistSession(state.session);
     showSignedIn();
     setStatus("Signed in.");
     await checkUsage();
@@ -287,8 +288,8 @@ async function checkUsage(options = {}) {
     const response = await fetch(`${state.backendUrl}/api/credits?installId=${encodeURIComponent(state.installId)}&email=${encodeURIComponent(state.user.email)}`, {
       headers: state.settings.headers
     });
-    if (!response.ok) throw new Error("Backend unavailable");
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || "Backend unavailable");
     state.packs = data.packs || [];
     renderUsage(data.free || data, data.paid || {});
     renderCreditPacks(state.packs, state.settings, Boolean(options.showPacks));
@@ -302,6 +303,38 @@ async function checkUsage(options = {}) {
     summarize.disabled = true;
     summarize.classList.add("is-disabled");
     creditPacks.innerHTML = "";
+  }
+}
+
+async function openCreditPacks() {
+  if (state.mode === "loading") {
+    setStatus("Loading your Brevi account...");
+    return;
+  }
+
+  if (!state.session?.access_token && state.storedSession) {
+    setStatus("Restoring your session...");
+    await restoreSession(state.storedSession);
+  }
+
+  if (!state.session?.access_token) {
+    showSignedOutEmail();
+    setStatus("Sign in to buy credits.");
+    return;
+  }
+
+  if (!state.settings || state.packs.length === 0) {
+    setStatus("Checking credit packs...");
+    await checkUsage({ showPacks: true });
+  } else {
+    renderCreditPacks(state.packs, state.settings, true);
+  }
+
+  if (state.packs.some((pack) => pack.available)) {
+    creditPacks.classList.add("is-open");
+    setStatus("Choose a credit pack.");
+  } else {
+    setStatus("Credit packs are not configured yet.");
   }
 }
 
@@ -352,6 +385,10 @@ function renderCreditPacks(packs, settings, showPacks = false) {
 }
 
 async function buyCreditPack(pack, settings) {
+  if (!state.session?.access_token && state.storedSession) {
+    await restoreSession(state.storedSession);
+  }
+
   if (!state.session?.access_token) {
     showSignedOutEmail();
     setStatus("Sign in to buy credits.");
@@ -371,7 +408,7 @@ async function buyCreditPack(pack, settings) {
         installId: settings.installId
       })
     });
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.checkoutUrl) {
       throw new Error(data.message || "Could not create checkout.");
     }
@@ -483,6 +520,7 @@ function isExpiredOrExpiring(session) {
 }
 
 function showLoading(message) {
+  setMode("loading");
   authCard.classList.remove("hidden");
   signedInView.classList.add("hidden");
   emailStep.classList.remove("hidden");
@@ -491,6 +529,7 @@ function showLoading(message) {
 }
 
 function showSignedOutEmail() {
+  setMode("signed_out");
   authCard.classList.remove("hidden");
   signedInView.classList.add("hidden");
   emailStep.classList.remove("hidden");
@@ -499,6 +538,7 @@ function showSignedOutEmail() {
 }
 
 function showCodeSent() {
+  setMode("signed_out");
   authCard.classList.remove("hidden");
   signedInView.classList.add("hidden");
   emailStep.classList.add("hidden");
@@ -507,6 +547,7 @@ function showCodeSent() {
 }
 
 function showSignedIn() {
+  setMode("signed_in");
   authCard.classList.add("hidden");
   signedInView.classList.remove("hidden");
   signedInEmail.textContent = state.user?.email || "";
@@ -519,6 +560,16 @@ function setAuthBusy(isBusy, message = "") {
   resendCode.disabled = isBusy;
   changeEmail.disabled = isBusy;
   if (message) status.textContent = message;
+}
+
+function setMode(mode) {
+  state.mode = mode;
+  const loading = mode === "loading";
+  const signedIn = mode === "signed_in";
+  buyCredits.disabled = loading || !signedIn;
+  buyCredits.classList.toggle("is-disabled", loading || !signedIn);
+  summarize.disabled = loading || !signedIn;
+  summarize.classList.toggle("is-disabled", loading || !signedIn);
 }
 
 function supabaseHeaders() {
