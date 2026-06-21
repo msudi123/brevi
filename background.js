@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_URL = "https://getbrevi.dev";
+const DEFAULT_BACKEND_URL = "https://www.getbrevi.dev";
 const FALLBACK_BACKEND_URL = "https://brevi-psi.vercel.app";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -726,8 +726,9 @@ async function resolveBackendUrl(systemBackendUrl) {
     try {
       const response = await fetch(`${backendUrl}/api/health`);
       if (response.ok) {
-        await chrome.storage.local.set({ systemBackendUrl: backendUrl });
-        return backendUrl;
+        const resolvedBackendUrl = backendOriginFromResponse(response, backendUrl);
+        await chrome.storage.local.set({ systemBackendUrl: resolvedBackendUrl });
+        return resolvedBackendUrl;
       }
     } catch (error) {
       // Try the next backend candidate.
@@ -745,6 +746,14 @@ function normalizeSupabaseSession(session) {
 
 function normalizeBackendUrl(value) {
   return String(value || DEFAULT_BACKEND_URL).trim().replace(/\/+$/, "");
+}
+
+function backendOriginFromResponse(response, fallbackUrl) {
+  try {
+    return normalizeBackendUrl(new URL(response.url || fallbackUrl).origin);
+  } catch (error) {
+    return normalizeBackendUrl(fallbackUrl);
+  }
 }
 
 async function safeJson(response) {

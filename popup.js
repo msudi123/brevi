@@ -21,7 +21,7 @@ const resendCode = document.getElementById("resendCode");
 const changeEmail = document.getElementById("changeEmail");
 const signOut = document.getElementById("signOut");
 
-const DEFAULT_BACKEND_URL = "https://getbrevi.dev";
+const DEFAULT_BACKEND_URL = "https://www.getbrevi.dev";
 const FALLBACK_BACKEND_URL = "https://brevi-psi.vercel.app";
 
 const state = {
@@ -132,7 +132,10 @@ async function fetchBackendHealth() {
         lastError = new Error("Brevi backend is unavailable.");
         continue;
       }
-      return { backendUrl, data: await response.json() };
+      return {
+        backendUrl: backendOriginFromResponse(response, backendUrl),
+        data: await response.json()
+      };
     } catch (error) {
       lastError = error;
     }
@@ -609,6 +612,14 @@ async function ensureInstallId(installId) {
 
 function normalizeBackendUrl(value) {
   return String(value || DEFAULT_BACKEND_URL).trim().replace(/\/+$/, "");
+}
+
+function backendOriginFromResponse(response, fallbackUrl) {
+  try {
+    return normalizeBackendUrl(new URL(response.url || fallbackUrl).origin);
+  } catch (error) {
+    return normalizeBackendUrl(fallbackUrl);
+  }
 }
 
 function normalizeEmail(value) {
