@@ -188,7 +188,7 @@ function createSidebarShell() {
       <div class="ai-header">
         <div class="ai-brand">
           <div class="ai-logo-wrap">
-            <img class="ai-logo" src="${chrome.runtime.getURL("assets/brevi-logo-nobg.png")}" alt="">
+            <img class="ai-logo" src="${chrome.runtime.getURL("icons/icon-48.png")}" alt="">
           </div>
           <div class="ai-heading">
             <div class="ai-product">Brevi</div>

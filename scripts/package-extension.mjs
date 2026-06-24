@@ -13,7 +13,8 @@ const files = [
   "popup.html",
   "popup.css",
   "popup.js",
-  "assets"
+  "analytics.js",
+  "icons"
 ];
 
 if (existsSync(output)) {

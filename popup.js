@@ -51,6 +51,7 @@ changeEmail.addEventListener("click", () => showSignedOutEmail());
 signOut.addEventListener("click", () => signOutUser());
 
 autoRunEnabled.addEventListener("change", () => {
+  trackEvent("auto_run_toggle", { enabled: autoRunEnabled.checked ? "true" : "false" });
   chrome.runtime.sendMessage({
     type: "ARTICLE_INTEL_SAVE_SETTINGS",
     accountEmail: state.user?.email || "",
@@ -61,9 +62,11 @@ autoRunEnabled.addEventListener("change", () => {
 });
 
 summarize.addEventListener("click", () => {
+  trackEvent("summarize_click");
   if (!state.session?.access_token) {
     showSignedOutEmail();
     setStatus("Sign in to generate briefs.");
+    trackEvent("summarize_blocked", { reason: "signed_out" });
     return;
   }
 
@@ -71,15 +74,18 @@ summarize.addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "BREVI_MANUAL_SUMMARIZE" }, (response) => {
     if (response?.ok) {
       status.textContent = "Summary started.";
+      trackEvent("summarize_started");
       checkUsage();
     } else {
       status.textContent = response?.message || "Could not summarize this page.";
+      trackEvent("summarize_failed");
     }
     clearStatusLater();
   });
 });
 
 buyCredits.addEventListener("click", () => {
+  trackEvent("buy_credits_click");
   openCreditPacks();
 });
 
@@ -181,10 +187,12 @@ async function sendOtp(options = {}) {
   const email = normalizeEmail(authEmail.value || state.pendingEmail);
   if (!email) {
     setStatus("Enter your email.");
+    trackEvent("sign_in_code_blocked", { reason: "missing_email" });
     return;
   }
 
   try {
+    trackEvent(options.resend ? "sign_in_code_resend" : "sign_in_code_send");
     setAuthBusy(true, options.resend ? "Sending again..." : "Sending code...");
     await loadSupabaseConfig();
     const response = await fetch(`${state.supabaseUrl}/auth/v1/otp`, {
@@ -205,8 +213,10 @@ async function sendOtp(options = {}) {
     otpCode.value = "";
     showCodeSent();
     setStatus(options.resend ? "Code sent again." : "Code sent.");
+    trackEvent(options.resend ? "sign_in_code_resent" : "sign_in_code_sent");
   } catch (error) {
     setStatus(error.message || "Could not send sign-in code.");
+    trackEvent("sign_in_code_failed");
   } finally {
     setAuthBusy(false);
   }
@@ -217,10 +227,12 @@ async function verifyOtp() {
   const token = String(otpCode.value || "").trim();
   if (!email || token.length < 6) {
     setStatus("Enter the 6-digit code.");
+    trackEvent("sign_in_verify_blocked", { reason: "missing_code" });
     return;
   }
 
   try {
+    trackEvent("sign_in_verify");
     setAuthBusy(true, "Verifying...");
     const response = await fetch(`${state.supabaseUrl}/auth/v1/verify`, {
       method: "POST",
@@ -246,15 +258,18 @@ async function verifyOtp() {
     await persistSession(state.session);
     showSignedIn();
     setStatus("Signed in.");
+    trackEvent("sign_in_success");
     await checkUsage();
   } catch (error) {
     setStatus(error.message || "Invalid or expired code. Try again.");
+    trackEvent("sign_in_failed");
   } finally {
     setAuthBusy(false);
   }
 }
 
 async function signOutUser() {
+  trackEvent("sign_out");
   try {
     if (state.session?.access_token) {
       await fetch(`${state.supabaseUrl}/auth/v1/logout`, {
@@ -305,11 +320,13 @@ async function checkUsage(options = {}) {
 async function openCreditPacks() {
   if (state.mode === "loading") {
     setStatus("Loading your Brevi account...");
+    trackEvent("credit_packs_blocked", { reason: "loading" });
     return;
   }
 
   if (!(await ensureAuthenticatedSession())) {
     setStatus("Sign in to buy credits.");
+    trackEvent("credit_packs_blocked", { reason: "signed_out" });
     return;
   }
 
@@ -323,8 +340,10 @@ async function openCreditPacks() {
   if (state.packs.some((pack) => pack.available)) {
     creditPacks.classList.add("is-open");
     setStatus("Choose a credit pack.");
+    trackEvent("credit_packs_opened");
   } else {
     setStatus("Credit packs are not configured yet.");
+    trackEvent("credit_packs_unavailable");
   }
 }
 
@@ -377,10 +396,12 @@ function renderCreditPacks(packs, settings, showPacks = false) {
 async function buyCreditPack(pack) {
   if (!(await ensureAuthenticatedSession())) {
     setStatus("Sign in to buy credits.");
+    trackEvent("checkout_blocked", { reason: "signed_out" });
     return;
   }
 
   status.textContent = "Opening checkout...";
+  trackEvent("checkout_start", { pack });
   try {
     const response = await fetch(`${state.backendUrl}/api/credits/checkout`, {
       method: "POST",
@@ -399,8 +420,10 @@ async function buyCreditPack(pack) {
     }
     await chrome.tabs.create({ url: data.checkoutUrl });
     status.textContent = "";
+    trackEvent("checkout_opened", { pack });
   } catch (error) {
     status.textContent = error.message;
+    trackEvent("checkout_failed", { pack });
   }
 }
 
@@ -629,6 +652,10 @@ function normalizeEmail(value) {
 function setStatus(message) {
   status.textContent = message;
   clearStatusLater();
+}
+
+function trackEvent(name, params = {}) {
+  window.breviAnalytics?.trackEvent(name, params);
 }
 
 function clearStatusLater() {

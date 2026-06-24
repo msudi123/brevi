@@ -1,8 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Brevi",
-  "version": "1.0.0",
-  "description": "Finds free coverage of paywalled articles and summarizes it clearly.",
+  "name": "Brevi — Source-Backed Article Summaries",
+  "short_name": "Brevi",
+  "version": "1.0.2",
+  "description": "Find open-web coverage for locked articles and get source-backed summaries in seconds.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "permissions": [
     "activeTab",
     "scripting",
@@ -14,7 +21,8 @@
     "https://getbrevi.dev/*",
     "https://www.getbrevi.dev/*",
     "https://brevi-psi.vercel.app/*",
-    "https://*.supabase.co/*"
+    "https://*.supabase.co/*",
+    "https://www.google-analytics.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -32,14 +40,21 @@
   ],
   "action": {
     "default_title": "Brevi",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
   },
   "web_accessible_resources": [
     {
       "resources": [
         "sidebar.html",
         "sidebar.css",
-        "assets/brevi-logo-nobg.png"
+        "icons/icon-48.png",
+        "icons/icon-128.png"
       ],
       "matches": [
         "<all_urls>"

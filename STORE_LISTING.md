@@ -1,8 +1,12 @@
 # Brevi Chrome Web Store Listing Notes
 
+## Name
+
+Brevi — Source-Backed Article Summaries
+
 ## Short Description
 
-Brevi finds free coverage of paywalled articles and gives you a concise summary.
+Find open-web coverage for locked articles and get source-backed summaries in seconds.
 
 ## Detailed Description
 
@@ -28,4 +32,4 @@ Brevi does not bypass paywalls, unlock subscriber-only content, or copy the payw
 
 ## Privacy Summary
 
-Brevi sends the current article title, URL, anonymous install ID, and optional email to the Brevi backend to provide summaries and enforce the free daily limit. Brevi does not sell user data.
+Brevi sends the current article title, URL, anonymous install ID, and optional email to the Brevi backend to provide summaries and enforce the free daily limit. Brevi uses Google Analytics to measure extension popup usage and non-sensitive product events, without sending article URLs or email addresses to Google Analytics. Brevi does not sell user data.
