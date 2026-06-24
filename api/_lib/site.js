@@ -508,7 +508,7 @@ ${paths.map((path) => `  <url><loc>${base}${path === "/" ? "" : path}</loc></url
 }
 
 function siteUrl(config) {
-  return config.publicAppUrl || "https://getbrevi.dev";
+  return config.publicAppUrl || "https://www.getbrevi.dev";
 }
 
 function normalizePath(pathname) {
