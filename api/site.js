@@ -4,7 +4,7 @@ import { handleSiteRequest } from "./_lib/site.js";
 loadLocalEnv();
 
 export default async function handler(request, response) {
-  if (request.method !== "GET") {
+  if (request.method !== "GET" && request.method !== "HEAD") {
     response.statusCode = 405;
     response.end("Method not allowed");
     return;

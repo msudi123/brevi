@@ -47,7 +47,7 @@ export function getConfig() {
     resendApiKey: process.env.RESEND_API_KEY || "",
     supportEmail: process.env.SUPPORT_EMAIL || "getbrevi@gmail.com",
     supportFromEmail: process.env.SUPPORT_FROM_EMAIL || "Brevi Support <support@getbrevi.dev>",
-    publicAppUrl: normalizePublicUrl(process.env.PUBLIC_APP_URL || process.env.VERCEL_URL || ""),
+    publicAppUrl: normalizePublicUrl(process.env.PUBLIC_APP_URL || ""),
     extensionOrigin: process.env.PUBLIC_EXTENSION_ORIGIN || "*",
     whopCheckoutUrl: process.env.WHOP_CHECKOUT_URL || "https://whop.com",
     nodeEnv: process.env.NODE_ENV || "development"
