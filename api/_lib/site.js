@@ -1,5 +1,6 @@
 const CONTACT_EMAIL = "getbrevi@gmail.com";
 const LAST_UPDATED = "June 20, 2026";
+const GOOGLE_TAG_ID = "G-C7KV5GVSWT";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home" },
@@ -333,6 +334,7 @@ function renderPage({ title, description, body, path, config }) {
     <link rel="shortcut icon" href="/assets/favicons/favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicons/apple-touch-icon.png">
     <link rel="manifest" href="/assets/favicons/site.webmanifest">
+    ${googleTag()}
     <style>${siteCss()}</style>
   </head>
   <body>
@@ -361,6 +363,18 @@ function renderPage({ title, description, body, path, config }) {
     </footer>
   </body>
 </html>`;
+}
+
+function googleTag() {
+  return `<!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${GOOGLE_TAG_ID}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', '${GOOGLE_TAG_ID}');
+    </script>`;
 }
 
 function siteCss() {
