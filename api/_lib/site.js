@@ -1,9 +1,11 @@
 const CONTACT_EMAIL = "getbrevi@gmail.com";
 const LAST_UPDATED = "June 20, 2026";
 const GOOGLE_TAG_ID = "G-C7KV5GVSWT";
+const CHROME_WEB_STORE_URL = "https://chromewebstore.google.com/detail/bpjaljnecngdfcbnejkgeeahncepjlid?utm_source=item-share-cb";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home" },
+  { href: "/#install", label: "Install" },
   { href: "/privacy", label: "Privacy" },
   { href: "/terms", label: "Terms" },
   { href: "/support", label: "Support" }
@@ -69,63 +71,105 @@ function renderHome(appUrl) {
   return `
     <section class="hero">
       <div class="hero-copy">
-        <span class="eyebrow">Chrome extension for blocked article research</span>
-        <h1>Brevi turns locked stories into clear open-web briefs.</h1>
-        <p>When an article is behind a paywall, Brevi looks for separate public coverage, checks whether it matches the story, and gives you a concise research brief with source context.</p>
+        <span class="status-pill">Approved on the Chrome Web Store</span>
+        <h1>Understand locked stories without breaking the web.</h1>
+        <p>Brevi is a Chrome extension that helps careful readers research paywalled or blocked articles by finding separate public coverage, checking story match, and turning the open-web reporting into a concise brief.</p>
         <div class="hero-actions">
-          <a class="button primary" href="#install">Get Brevi</a>
+          <a class="button primary" href="${CHROME_WEB_STORE_URL}" target="_blank" rel="noopener">Add to Chrome</a>
+          <a class="button secondary" href="#how-it-works">See how it works</a>
           <a class="button secondary" href="/privacy">Read privacy policy</a>
+        </div>
+        <div class="proof-strip" aria-label="Brevi highlights">
+          <span><strong>Open-web only</strong> Uses separate public sources</span>
+          <span><strong>Source aware</strong> Shows match and quality signals</span>
+          <span><strong>Simple access</strong> Email sign-in and daily free briefs</span>
         </div>
       </div>
       <div class="product-panel" aria-label="Brevi preview">
         <div class="panel-header">
-          <span class="logo-mark"></span>
+          <img src="/assets/brevi-logo-nobg.png" alt="">
           <div>
             <strong>Brevi</strong>
-            <small>Open-web story brief</small>
+            <small>Chrome extension sidebar</small>
           </div>
+        </div>
+        <div class="article-chip">
+          <span>Current page</span>
+          <strong>Premium story detected</strong>
         </div>
         <div class="trust-grid">
           <span><em>Match</em><strong>High</strong></span>
-          <span><em>Sources</em><strong>4 used</strong></span>
-          <span><em>Quality</em><strong>High</strong></span>
+          <span><em>Public sources</em><strong>4 found</strong></span>
+          <span><em>Quality</em><strong>Strong</strong></span>
           <span><em>Original</em><strong>Excluded</strong></span>
         </div>
         <div class="brief-lines">
-          <p><strong>Key point</strong> Brevi summarizes public reporting from separate sources, not copied paywalled text.</p>
-          <p><strong>Read original?</strong> Maybe, if you need details unique to the publisher.</p>
+          <p><strong>Brief</strong> Brevi compares public reporting, extracts the shared facts, and flags what may still require the original article.</p>
+          <p><strong>Source context</strong> The summary is based on open pages that independently cover the same story.</p>
         </div>
+        <a class="store-card" href="${CHROME_WEB_STORE_URL}" target="_blank" rel="noopener">
+          <span>Available now</span>
+          <strong>Install from the Chrome Web Store</strong>
+        </a>
       </div>
     </section>
 
-    <section class="band">
+    <section id="how-it-works" class="band">
       <div class="section-heading">
-        <span class="eyebrow">Built for careful readers</span>
-        <h2>Useful by default, transparent when it matters.</h2>
+        <span class="eyebrow">How Brevi works</span>
+        <h2>A research assistant for the page you are already reading.</h2>
       </div>
       <div class="feature-grid">
         <article>
-          <h3>Open-web coverage</h3>
-          <p>Brevi searches for free sources covering the same story and keeps the original article out of the summary input.</p>
+          <span class="step">1</span>
+          <h3>Open the article</h3>
+          <p>When a page is blocked or paywalled, open Brevi from your browser toolbar or sidebar.</p>
         </article>
         <article>
-          <h3>Source confidence</h3>
-          <p>The sidebar shows match quality, source quality, and whether reading the original may still be worthwhile.</p>
+          <span class="step">2</span>
+          <h3>Find public coverage</h3>
+          <p>Brevi looks for separate open-web sources about the same story and checks whether they match.</p>
         </article>
         <article>
-          <h3>Simple credits</h3>
-          <p>Start with free daily summaries. Buy credit packs only when you need more briefs.</p>
+          <span class="step">3</span>
+          <h3>Read the brief</h3>
+          <p>Get the key points, source context, and a signal for whether the original is still worth reading.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="reader-section">
+      <div class="section-heading">
+        <span class="eyebrow">Why readers use it</span>
+        <h2>Less friction, more context, and a cleaner decision about what deserves your time.</h2>
+      </div>
+      <div class="reader-grid">
+        <article>
+          <h3>For news catch-up</h3>
+          <p>Quickly understand the public facts around a story when the first link you open is unavailable.</p>
+        </article>
+        <article>
+          <h3>For research trails</h3>
+          <p>Use the source list and confidence signals to keep moving without losing track of where claims came from.</p>
+        </article>
+        <article>
+          <h3>For fair reading</h3>
+          <p>Brevi does not unlock paywalled text. It summarizes separate public reporting and tells you when the original may matter.</p>
+        </article>
+        <article>
+          <h3>For occasional use</h3>
+          <p>Start with daily free briefs. Paid credits are there only when you need more.</p>
         </article>
       </div>
     </section>
 
     <section id="install" class="install-section">
       <div>
-        <span class="eyebrow">Launch checklist</span>
-        <h2>Install from Chrome, sign in once, and brief the page you are reading.</h2>
-        <p>Brevi uses email one-time codes for account access. Purchases are linked to your verified email and Supabase user ID.</p>
+        <span class="eyebrow">Approved and ready</span>
+        <h2>Add Brevi to Chrome and brief your next locked article.</h2>
+        <p>Install from the Chrome Web Store, sign in with your email, and use Brevi on supported article pages. Free daily summaries are included.</p>
       </div>
-      <a class="button primary" href="mailto:${CONTACT_EMAIL}?subject=Brevi%20Chrome%20extension%20access">Request Chrome Web Store link</a>
+      <a class="button primary" href="${CHROME_WEB_STORE_URL}" target="_blank" rel="noopener">Open Chrome Web Store</a>
     </section>
 
     <section class="faq">
@@ -142,6 +186,10 @@ function renderHome(appUrl) {
         <summary>How do credits work?</summary>
         <p>Each successful brief uses one free daily summary or one paid credit after the free allowance is used.</p>
       </details>
+      <details>
+        <summary>Is Brevi available now?</summary>
+        <p>Yes. Brevi has been approved for the Chrome Web Store and can be installed from the official listing linked on this page.</p>
+      </details>
     </section>
 
     <script type="application/ld+json">${jsonLd({
@@ -152,6 +200,7 @@ function renderHome(appUrl) {
       operatingSystem: "Chrome",
       description: "Chrome extension that creates open-web story briefs for locked article research.",
       url: appUrl,
+      installUrl: CHROME_WEB_STORE_URL,
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       contactPoint: { "@type": "ContactPoint", email: CONTACT_EMAIL, contactType: "customer support" }
     })}</script>
@@ -335,6 +384,7 @@ function renderPage({ title, description, body, path, config }) {
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicons/apple-touch-icon.png">
     <link rel="manifest" href="/assets/favicons/site.webmanifest">
     ${googleTag()}
+    ${posthogTag(config)}
     <style>${siteCss()}</style>
   </head>
   <body>
@@ -377,9 +427,33 @@ function googleTag() {
     </script>`;
 }
 
+function posthogTag(config) {
+  if (!config.posthogProjectKey) return "";
+
+  const apiHost = config.posthogApiHost || "https://us.i.posthog.com";
+  return `<!-- PostHog -->
+    <script>
+      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags reloadFeatureFlags getFeatureFlag getFeatureFlagPayload group".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+      posthog.init("${escapeScript(config.posthogProjectKey)}", {
+        api_host: "${escapeScript(apiHost)}",
+        capture_pageview: true,
+        persistence: "localStorage+cookie",
+        person_profiles: "identified_only"
+      });
+      document.addEventListener("click", function(event) {
+        var link = event.target.closest && event.target.closest("a[href*='chromewebstore.google.com']");
+        if (!link || !window.posthog) return;
+        posthog.capture("chrome_web_store_click", {
+          link_text: (link.textContent || "").trim().slice(0, 80),
+          page_path: window.location.pathname
+        });
+      });
+    </script>`;
+}
+
 function siteCss() {
   return `
-    :root { --navy:#0B1320; --slate:#334155; --muted:#64748B; --teal:#14B8A6; --mint:#E6F7F4; --bg:#F5F7FA; --card:#FFFFFF; --border:#E2E8F0; --amber:#F59E0B; color:var(--navy); background:var(--bg); font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
+    :root { --navy:#0B1320; --slate:#334155; --muted:#64748B; --teal:#14B8A6; --teal-dark:#0F766E; --mint:#E6F7F4; --bg:#F5F7FA; --card:#FFFFFF; --border:#E2E8F0; --amber:#F59E0B; --rose:#BE123C; color:var(--navy); background:var(--bg); font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
     * { box-sizing:border-box; }
     body { margin:0; background:var(--bg); color:var(--navy); }
     a { color:inherit; }
@@ -390,34 +464,54 @@ function siteCss() {
     nav a { color:var(--slate); font-size:14px; font-weight:750; text-decoration:none; }
     nav a:hover { color:var(--teal); }
     main { overflow:hidden; }
-    .hero { display:grid; grid-template-columns:minmax(0, 1.05fr) minmax(320px, .95fr); gap:44px; align-items:center; padding:clamp(56px, 8vw, 104px) clamp(18px, 5vw, 72px) 48px; }
-    .eyebrow { display:inline-flex; margin-bottom:12px; color:#0F766E; font-size:12px; font-weight:900; letter-spacing:0; text-transform:uppercase; }
+    .hero { display:grid; grid-template-columns:minmax(0, 1.05fr) minmax(320px, .95fr); gap:44px; align-items:center; padding:clamp(56px, 8vw, 104px) clamp(18px, 5vw, 72px) 44px; background:linear-gradient(180deg, #FFFFFF 0%, var(--bg) 82%); }
+    .eyebrow { display:inline-flex; margin-bottom:12px; color:var(--teal-dark); font-size:12px; font-weight:900; letter-spacing:0; text-transform:uppercase; }
+    .status-pill { display:inline-flex; align-items:center; min-height:32px; margin-bottom:14px; padding:0 12px; border:1px solid rgba(20,184,166,.3); border-radius:999px; background:var(--mint); color:var(--teal-dark); font-size:13px; font-weight:900; }
     h1 { max-width:820px; margin:0; color:var(--navy); font-size:clamp(42px, 7vw, 76px); line-height:.96; letter-spacing:0; }
     h2 { margin:0; color:var(--navy); font-size:clamp(26px, 4vw, 42px); line-height:1.05; letter-spacing:0; }
     h3 { margin:0 0 8px; color:var(--navy); font-size:18px; }
     p { color:var(--slate); font-size:16px; line-height:1.65; }
     .hero-copy > p { max-width:680px; margin:22px 0 0; font-size:19px; }
     .hero-actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:28px; }
-    .button { display:inline-flex; align-items:center; justify-content:center; min-height:46px; padding:0 18px; border-radius:10px; font-size:15px; font-weight:900; text-decoration:none; }
-    .button.primary { background:var(--teal); color:white; }
+    .button { display:inline-flex; align-items:center; justify-content:center; min-height:46px; padding:0 18px; border-radius:10px; font-size:15px; font-weight:900; text-decoration:none; transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+    .button:hover { transform:translateY(-1px); }
+    .button.primary { background:var(--teal); color:white; box-shadow:0 12px 30px rgba(20,184,166,.25); }
     .button.secondary { border:1px solid var(--border); background:white; color:var(--navy); }
-    .product-panel { align-self:stretch; min-height:460px; padding:22px; border:1px solid var(--border); border-radius:18px; background:linear-gradient(180deg, white, #F8FAFC); box-shadow:0 24px 70px rgba(11,19,32,.14); }
+    .button.secondary:hover { border-color:rgba(20,184,166,.48); }
+    .proof-strip { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; max-width:760px; margin-top:28px; }
+    .proof-strip span { display:grid; gap:2px; min-height:72px; padding:12px; border-left:3px solid var(--teal); background:rgba(255,255,255,.76); color:var(--muted); font-size:13px; line-height:1.35; }
+    .proof-strip strong { color:var(--navy); font-size:14px; }
+    .product-panel { align-self:stretch; min-height:510px; padding:22px; border:1px solid var(--border); border-radius:18px; background:linear-gradient(180deg, white, #F8FAFC); box-shadow:0 24px 70px rgba(11,19,32,.14); }
     .panel-header { display:flex; align-items:center; gap:12px; padding-bottom:16px; border-bottom:1px solid var(--border); }
-    .logo-mark { width:38px; height:38px; border-radius:11px; background:linear-gradient(135deg, transparent 58%, var(--teal) 59%), linear-gradient(var(--navy), var(--navy)); box-shadow:inset 10px 10px 0 rgba(255,255,255,.96); }
+    .panel-header img { width:42px; height:42px; border-radius:12px; object-fit:cover; }
     .panel-header strong { display:block; font-size:18px; }
     .panel-header small { color:var(--muted); font-size:13px; font-weight:750; }
+    .article-chip { display:grid; gap:4px; margin:18px 0 0; padding:14px; border:1px solid rgba(245,158,11,.3); border-radius:12px; background:#FFFBEB; }
+    .article-chip span { color:#92400E; font-size:11px; font-weight:900; text-transform:uppercase; }
+    .article-chip strong { color:var(--navy); font-size:16px; }
     .trust-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:20px 0; }
     .trust-grid span { display:grid; gap:3px; padding:12px; border:1px solid rgba(20,184,166,.2); border-radius:12px; background:var(--mint); }
     .trust-grid em { color:var(--muted); font-size:11px; font-style:normal; font-weight:900; text-transform:uppercase; }
     .trust-grid strong { font-size:15px; }
     .brief-lines { display:grid; gap:12px; }
     .brief-lines p { margin:0; padding:14px; border:1px solid var(--border); border-radius:12px; background:white; }
-    .band, .faq, .install-section, .legal-hero, .legal-doc { margin:0 auto; width:min(1120px, calc(100vw - 36px)); }
+    .store-card { display:grid; gap:4px; margin-top:16px; padding:16px; border:1px solid rgba(15,118,110,.28); border-radius:12px; background:var(--navy); color:white; text-decoration:none; }
+    .store-card span { color:#A7F3D0; font-size:12px; font-weight:900; text-transform:uppercase; }
+    .store-card strong { font-size:18px; }
+    .band, .reader-section, .faq, .install-section, .legal-hero, .legal-doc { margin:0 auto; width:min(1120px, calc(100vw - 36px)); }
     .band { padding:40px 0 64px; }
     .section-heading { max-width:720px; margin-bottom:22px; }
     .feature-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px; }
     .feature-grid article { padding:20px; border:1px solid var(--border); border-radius:14px; background:white; }
+    .step { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; margin-bottom:18px; border-radius:50%; background:var(--navy); color:white; font-size:14px; font-weight:900; }
     .feature-grid p { margin:0; color:var(--muted); font-size:15px; }
+    .reader-section { padding:0 0 64px; }
+    .reader-grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:1px; border:1px solid var(--border); background:var(--border); }
+    .reader-grid article { min-height:210px; padding:20px; background:white; }
+    .reader-grid article:nth-child(2) { border-top:4px solid var(--amber); }
+    .reader-grid article:nth-child(3) { border-top:4px solid var(--rose); }
+    .reader-grid article:nth-child(4) { border-top:4px solid var(--teal); }
+    .reader-grid p { margin:0; color:var(--muted); font-size:15px; }
     .install-section { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:24px; align-items:center; margin-bottom:64px; padding:26px; border:1px solid rgba(20,184,166,.22); border-radius:18px; background:var(--mint); }
     .install-section p { margin-bottom:0; }
     .faq { padding-bottom:72px; }
@@ -449,7 +543,9 @@ function siteCss() {
     footer { display:flex; justify-content:space-between; gap:24px; flex-wrap:wrap; padding:26px clamp(18px, 5vw, 72px); border-top:1px solid var(--border); background:white; }
     footer p { margin:4px 0 0; color:var(--muted); font-size:14px; }
     footer a { color:var(--slate); font-size:14px; font-weight:750; text-decoration:none; }
-    @media (max-width: 820px) { .site-header { align-items:flex-start; flex-direction:column; } .hero { grid-template-columns:1fr; padding-top:42px; } .product-panel { min-height:0; } .feature-grid, .install-section, .form-grid { grid-template-columns:1fr; } h1 { font-size:42px; } }
+    @media (max-width: 980px) { .reader-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 820px) { .site-header { align-items:flex-start; flex-direction:column; } .hero { grid-template-columns:1fr; padding-top:42px; } .product-panel { min-height:0; } .feature-grid, .install-section, .form-grid, .proof-strip { grid-template-columns:1fr; } h1 { font-size:42px; } }
+    @media (max-width: 560px) { nav { gap:12px; } .hero-actions .button, .install-section .button { width:100%; } .reader-grid { grid-template-columns:1fr; } .trust-grid { grid-template-columns:1fr; } }
   `;
 }
 
@@ -537,6 +633,13 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value).replaceAll("`", "&#096;");
+}
+
+function escapeScript(value) {
+  return String(value || "")
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"')
+    .replaceAll("</", "<\\/");
 }
 
 function jsonLd(value) {

@@ -41,3 +41,29 @@ test("getConfig includes the Supabase anon key when set", () => {
     }
   }
 });
+
+test("getConfig includes public PostHog settings when set", () => {
+  const previousProjectKey = process.env.POSTHOG_PROJECT_KEY;
+  const previousApiHost = process.env.POSTHOG_API_HOST;
+
+  try {
+    process.env.POSTHOG_PROJECT_KEY = "phc_test";
+    process.env.POSTHOG_API_HOST = "https://eu.i.posthog.com/";
+
+    const config = getConfig();
+    assert.equal(config.posthogProjectKey, "phc_test");
+    assert.equal(config.posthogApiHost, "https://eu.i.posthog.com");
+  } finally {
+    if (previousProjectKey === undefined) {
+      delete process.env.POSTHOG_PROJECT_KEY;
+    } else {
+      process.env.POSTHOG_PROJECT_KEY = previousProjectKey;
+    }
+
+    if (previousApiHost === undefined) {
+      delete process.env.POSTHOG_API_HOST;
+    } else {
+      process.env.POSTHOG_API_HOST = previousApiHost;
+    }
+  }
+});

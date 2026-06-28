@@ -16,6 +16,8 @@ RESEND_API_KEY=...
 SUPPORT_EMAIL=getbrevi@gmail.com
 SUPPORT_FROM_EMAIL=Brevi Support <support@getbrevi.dev>
 FREE_DAILY_LIMIT=5
+POSTHOG_PROJECT_KEY=
+POSTHOG_API_HOST=https://us.i.posthog.com
 ```
 
 Supabase Auth in the popup uses the public anon key plus email one-time-code sign-in.
@@ -54,6 +56,8 @@ SUPABASE_ANON_KEY=
 RESEND_API_KEY=
 SUPPORT_EMAIL=getbrevi@gmail.com
 SUPPORT_FROM_EMAIL=Brevi Support <support@getbrevi.dev>
+POSTHOG_PROJECT_KEY=
+POSTHOG_API_HOST=https://us.i.posthog.com
 PUBLIC_EXTENSION_ORIGIN=*
 WHOP_API_KEY=
 WHOP_CLIENT_ID=
